@@ -1,8 +1,42 @@
+import argparse
 from pathlib import Path
 
 from scripts.init import initialize_project
 from scripts.activation_new_task import activate_new_task
 
+
+#  ------------------------------------
+# | Добавление параметров в терминале |
+# ------------------------------------
+parser = argparse.ArgumentParser(
+    prog="Toolkit",
+    description="Automation routine tasks!",
+    epilog="Created by Markus"
+)
+
+# interface [bool] CLI/GUI
+parser.add_argument(
+    '-i', '--interface',
+    action='store_true',
+    help="Change CLI to GUI interface"
+)
+
+# Turn on logging system [bool] add .log
+parser.add_argument(
+    '--log',
+    action='store_true',
+    help="Turn on logfile generation"
+)
+
+BASE_SETTINGS = parser.parse_args()
+print(f"{BASE_SETTINGS = }")
+
+if BASE_SETTINGS.interface:
+    print("<<< START GUI INTERFACE >>>")
+    print("!!! GUI is not defined !!!")
+    exit()
+    
+print("<<< GUI is inactive >>>")    
 
 start_script: dict[str, bool] = {
     'init': True,
@@ -25,6 +59,8 @@ if start_script['init']:
     for dir in list_dirs:
         if not dir.is_dir():
             initialize_project(list_dirs=list_dirs)
+    else:
+        print('<<< File system is ok! >>>')
 # ---------------------------------------------        
 
 #  -----------------------------------
