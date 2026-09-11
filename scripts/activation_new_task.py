@@ -5,8 +5,8 @@ from pathlib import Path
 
 def activate_new_task(base_dir: Path, name_of_task: str, tmp_dir: Path) -> None:
 
-    base_dir = base_dir / {name_of_task} 
-    backup_dir = base_dir / {name_of_task} / 'backup'
+    base_dir = base_dir / name_of_task 
+    backup_dir = base_dir / 'backup'
 
     if not os.path.isdir(base_dir):
         os.mkdir(base_dir)
