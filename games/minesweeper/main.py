@@ -143,7 +143,7 @@ class Minesweeper:
         # Переинициализируем игру заново в том же окне
         self.__init__(self.root)
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     game = Minesweeper(root)
     root.mainloop()

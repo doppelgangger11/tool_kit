@@ -136,7 +136,7 @@ class TicTacToeAI:
                 btn["text"] = ""
                 btn["fg"] = "black"
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     game = TicTacToeAI(root)
     root.mainloop()
