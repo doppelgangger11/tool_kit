@@ -20,6 +20,9 @@ def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
         )
 
     config = ConfigParser()
+    
+    # Preserve original case of option names
+    config.optionxform = str
     config.read(directory / "settings.ini")
 
     settings = {}
@@ -46,25 +49,20 @@ def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
 
 def write_settings(
     directory: Path,
-    settings: dict[str, dict[str, str]]
+    settings: dict[str, dict[str, Any]]
 ) -> None:
+    
     config = ConfigParser()
+
+    # Preserve original case of option names
+    config.optionxform = str
 
     for section, values in settings.items():
         config[section] = values
 
-    with open(directory / "settings.ini", "w", encoding="utf-8") as file:
+    with open(
+        directory / "settings.ini",
+        "w",
+        encoding="utf-8"
+    ) as file:
         config.write(file)
-        
-        
-if __name__ == '__main__':
-    settings = read_settings(Path("../"))
-
-    print('Main Settings:')
-    for section, values in settings.items():
-        print(f"[{section}]")
-        for name, value in values.items():
-            print(f"{name} = {value} -> {type(value)}")
-        
-    write_settings(Path('../'), settings)
-    
