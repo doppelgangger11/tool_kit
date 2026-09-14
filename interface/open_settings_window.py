@@ -67,3 +67,10 @@ def open_settings(root, BASE_DIR, BASE_SETTINGS):
         text="Cancle", 
         command=window.destroy
     ).grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+    
+    window.update_idletasks()
+
+    width = window.winfo_reqwidth()
+    height = window.winfo_reqheight()
+
+    window.geometry(f"{width + 20}x{height + 20}")

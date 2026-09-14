@@ -24,7 +24,6 @@ BASE_SETTINGS = read_settings(directory=BASE_DIR)
 
 root = tk.Tk()
 root.title("Toolkit")
-root.geometry('220x200')
 
 label = tk.Label(root, text="Greetings!")
 label.pack(pady=10)
@@ -75,5 +74,12 @@ settings_button = tk.Button(
 settings_button.pack(pady=10)
 
 tk.Button(root, text="Exit", command=root.destroy).pack()
+
+root.update_idletasks()
+
+width = root.winfo_reqwidth()
+height = root.winfo_reqheight()
+
+root.geometry(f"{width + 20}x{height + 20}")
 root.mainloop()
 

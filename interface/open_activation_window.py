@@ -36,3 +36,10 @@ def open_activation(root, WORKING_DIR, BASE_SETTINGS):
         text='Start', 
         command=on_click
     ).pack(pady=10)
+    
+    window.update_idletasks()
+
+    width = window.winfo_reqwidth()
+    height = window.winfo_reqheight()
+
+    window.geometry(f"{width + 20}x{height + 20}")
