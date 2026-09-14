@@ -5,8 +5,12 @@ from scripts.init import initialize_project
 from scripts.activation_new_task import activate_new_task
 from scripts.settings_manager import read_settings, write_settings
 
+from interface.tray import setup_tray
 from interface.open_settings_window import open_settings
 from interface.open_activation_window import open_activation
+from interface.open_program_launcher import open_program_launcher
+from interface.open_program_settings import open_program_settings
+from scripts.program_launcher import launch_selected_programs
 
 from games.minesweeper.main import main as mineswipper_main
 from games.tic_tac_toe.main import main as tic_tac_toe_main
@@ -25,6 +29,8 @@ BASE_SETTINGS = read_settings(directory=BASE_DIR)
 root = tk.Tk()
 root.title("Toolkit")
 
+setup_tray(root)
+
 label = tk.Label(root, text="Greetings!")
 label.pack(pady=10)
 
@@ -35,7 +41,18 @@ warning_label = tk.Label(
 )
 warning_label.pack(pady=(0, 5))
 
-# Acrivate new task
+# Program launcher
+launch_work_setup_button = tk.Button(
+    root,
+    text="Launch work setup",
+    command=lambda: launch_selected_programs(
+        BASE_SETTINGS
+    )
+)
+
+launch_work_setup_button.pack(pady=10)
+
+# Activate new task
 activation_button = tk.Button(
     root,
     text='Activate new task',
