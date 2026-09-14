@@ -29,6 +29,15 @@ BASE_SETTINGS = read_settings(directory=BASE_DIR)
 root = tk.Tk()
 root.title("Toolkit")
 
+BUTTONS = [
+    ("launcher", "Launch work setup", launch_selected_programs, (BASE_SETTINGS,)),
+    ("activation", "Activate new task", open_activation, (root, Path(BASE_SETTINGS["DIRS"]["working_dir"]), BASE_SETTINGS)),
+    ("mineswipper", "Mineswipper", mineswipper_main, ()),
+    ("tic_tac_toe", "Tic-Tak-Toe", tic_tac_toe_main, ()),
+    ("settings", "Settings", open_settings, (root, BASE_DIR, BASE_SETTINGS,)),
+    ("exit", "Exit", root.destroy, ()),
+]
+
 setup_tray(root)
 
 label = tk.Label(root, text="Greetings!")
@@ -41,56 +50,20 @@ warning_label = tk.Label(
 )
 warning_label.pack(pady=(0, 5))
 
-# Program launcher
-launch_work_setup_button = tk.Button(
-    root,
-    text="Launch work setup",
-    command=lambda: launch_selected_programs(
-        BASE_SETTINGS
+# Adding buttons
+for icon_name, text, command, args in BUTTONS:
+
+    tk.Button(
+        root,
+        text=text,
+        # image=icons[icon_name],
+        compound="left",
+        command=lambda command=command, args=args: command(*args)
+    ).pack(
+        fill="x",
+        padx=10,
+        pady=5
     )
-)
-
-launch_work_setup_button.pack(pady=10)
-
-# Activate new task
-activation_button = tk.Button(
-    root,
-    text='Activate new task',
-    command=lambda: open_activation(
-        root=root,
-        WORKING_DIR=Path(BASE_SETTINGS["DIRS"]["working_dir"]),
-        BASE_SETTINGS=BASE_SETTINGS
-    )
-)
-activation_button.pack(pady=10)
-
-mineswipper_button = tk.Button(
-    root,
-    text='mineswipper',
-    command=mineswipper_main
-)
-mineswipper_button.pack(pady=10)
-
-tic_tac_toe_main_button = tk.Button(
-    root,
-    text='tic-tac-toe',
-    command=tic_tac_toe_main
-)
-tic_tac_toe_main_button.pack(pady=10)
-
-# Settings
-settings_button = tk.Button(
-    root,
-    text='Settings',
-    command=lambda: open_settings(
-        root=root,
-        BASE_DIR=BASE_DIR,
-        BASE_SETTINGS=BASE_SETTINGS
-    )
-)
-settings_button.pack(pady=10)
-
-tk.Button(root, text="Exit", command=root.destroy).pack()
 
 root.update_idletasks()
 
