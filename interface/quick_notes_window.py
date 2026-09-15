@@ -202,6 +202,7 @@ class NotesWindow(tk.Toplevel):
         self.refresh()
 
     def _close(self):
+        self.canvas.unbind_all("<MouseWheel>")
         self.destroy()
  
         
