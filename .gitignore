@@ -9,6 +9,9 @@ __pycache__/
 # Settings
 settings.ini
 
+# Notes
+notes.json
+
 # Distribution / packaging
 .Python
 build/
