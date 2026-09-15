@@ -122,8 +122,15 @@ class NotesWindow(tk.Toplevel):
 
         self.notes_frame.bind("<Configure>", self._update_scrollregion)
         self.canvas.bind("<Configure>", self._resize_inner_frame)
-        self.canvas.bind("<MouseWheel>", self._mousewheel)
+        self.canvas.bind("<Enter>", self._enable_mousewheel)
+        self.canvas.bind("<Leave>", self._disable_mousewheel)
 
+    def _enable_mousewheel(self, event=None):
+        self.canvas.bind_all("<MouseWheel>", self._mousewheel)
+
+    def _disable_mousewheel(self, event=None):
+        self.canvas.unbind_all("<MouseWheel>")
+    
     def _update_scrollregion(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
