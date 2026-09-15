@@ -1,27 +1,19 @@
-import argparse
 from pathlib import Path
 
-from scripts.init import initialize_project
+from scripts.note_manager import NotesManager
 from scripts.activation_new_task import activate_new_task
 from scripts.program_launcher import launch_selected_programs
 from scripts.settings_manager import read_settings, write_settings
-from scripts.note_manager import NotesManager
 
 from interface.tray import setup_tray
+from interface.quick_notes_window import open_notes
 from interface.open_settings_window import open_settings
 from interface.open_activation_window import open_activation
-from interface.open_program_launcher import open_program_launcher
-from interface.open_program_settings import open_program_settings
-from interface.quick_notes_window import open_notes
 
 from games.minesweeper.main import main as mineswipper_main
 from games.tic_tac_toe.main import main as tic_tac_toe_main
 
-import threading
-import traceback
 import tkinter as tk
-# from scripts.main import main
-from tkinter import messagebox
 
 
 BASE_DIR = Path('./')

@@ -9,13 +9,22 @@ def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
         print("Used default settings!")
         write_settings(
             directory,
-            {
+            settings = {
                 "BASE": {
-                    "log": "false"
+                    "log": "False",
                 },
+
                 "DIRS": {
-                    "working_dir": "./"
-                }
+                    "working_dir": "",
+                    "temp_dir": "../temp",
+                    "notes_dir": "./db",
+                },
+
+                "PROGRAMS": {},
+
+                "ARCHITECTURE": {
+                    "directories": "",
+                },
             }
         )
 
