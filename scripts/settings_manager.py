@@ -22,9 +22,7 @@ def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
 
                 "PROGRAMS": {},
 
-                "ARCHITECTURE": {
-                    "directories": "",
-                },
+                "ARCHITECTURE": {},
             }
         )
 

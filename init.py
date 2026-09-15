@@ -32,9 +32,7 @@ DEFAULT_SETTINGS = {
 
     "PROGRAMS": {},
 
-    "ARCHITECTURE": {
-        "directories": "",
-    },
+    "ARCHITECTURE": {},
 }
 
 

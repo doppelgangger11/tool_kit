@@ -500,10 +500,12 @@ def open_settings(root, BASE_DIR, BASE_SETTINGS):
 
             directory = working_dir / path
 
-            directory.mkdir(
-                parents=True,
-                exist_ok=True
-            )
+            if working_dir / BASE_SETTINGS['ARCHITECTURE']['activation_dir'] != directory:
+            
+                directory.mkdir(
+                    parents=True,
+                    exist_ok=True
+                )
 
     # ---------------------------------------------------------
     # Architecture buttons
