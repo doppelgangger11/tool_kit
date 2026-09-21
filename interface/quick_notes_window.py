@@ -4,87 +4,320 @@ from datetime import datetime
 from scripts.note_manager import NotesManager, Note
 
 class NoteEditor(tk.Toplevel):
+
     def __init__(self, parent, notes_window, note=None):
         super().__init__(parent)
+
         self.notes_window = notes_window
         self.note = note
+
         self.title("New note" if note is None else "Edit note")
         self.geometry("700x600")
         self.minsize(500, 400)
+
         self.transient(parent)
         self.grab_set()
+
         self._create_widgets()
         self._load_note()
+        self._setup_shortcuts()
+
         self.protocol("WM_DELETE_WINDOW", self._close)
 
     def _create_widgets(self):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
+        # =========================
+        # Theme
+        # =========================
+
         theme_frame = ttk.Frame(self)
-        theme_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        theme_frame.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=10,
+            pady=(10, 5)
+        )
+
         theme_frame.columnconfigure(1, weight=1)
-        ttk.Label(theme_frame, text="Theme:").grid(row=0, column=0, padx=(0, 10))
+
+        ttk.Label(
+            theme_frame,
+            text="Theme:"
+        ).grid(
+            row=0,
+            column=0,
+            padx=(0, 10)
+        )
+
         self.theme_entry = ttk.Entry(theme_frame)
-        self.theme_entry.grid(row=0, column=1, sticky="ew")
+        self.theme_entry.grid(
+            row=0,
+            column=1,
+            sticky="ew"
+        )
+
+        # =========================
+        # Date
+        # =========================
 
         date_frame = ttk.Frame(self)
-        date_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
-        ttk.Label(date_frame, text="Date:").grid(row=0, column=0, padx=(0, 10))
+        date_frame.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=10,
+            pady=5
+        )
+
+        ttk.Label(
+            date_frame,
+            text="Date:"
+        ).grid(
+            row=0,
+            column=0,
+            padx=(0, 10)
+        )
+
         self.date_label = ttk.Label(date_frame)
-        self.date_label.grid(row=0, column=1, sticky="w")
+        self.date_label.grid(
+            row=0,
+            column=1,
+            sticky="w"
+        )
+
+        # =========================
+        # Text editor
+        # =========================
 
         text_frame = ttk.Frame(self)
-        text_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=5)
+        text_frame.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=10,
+            pady=5
+        )
+
         text_frame.rowconfigure(0, weight=1)
         text_frame.columnconfigure(0, weight=1)
-        self.text = tk.Text(text_frame, wrap="word", undo=True)
-        self.text.grid(row=0, column=0, sticky="nsew")
-        scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=self.text.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.text.configure(yscrollcommand=scrollbar.set)
+
+        self.text = tk.Text(
+            text_frame,
+            wrap="word",
+            undo=True
+        )
+
+        self.text.grid(
+            row=0,
+            column=0,
+            sticky="nsew"
+        )
+
+        scrollbar = ttk.Scrollbar(
+            text_frame,
+            orient="vertical",
+            command=self.text.yview
+        )
+
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns"
+        )
+
+        self.text.configure(
+            yscrollcommand=scrollbar.set
+        )
+
+        # =========================
+        # Buttons
+        # =========================
 
         buttons_frame = ttk.Frame(self)
-        buttons_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=10)
-        ttk.Button(buttons_frame, text="Cancel", command=self._close).pack(side="right", padx=(5, 0))
-        ttk.Button(buttons_frame, text="Save", command=self._save).pack(side="right")
-        self.bind("<Control-s>", lambda event: self._save())
+        buttons_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=10,
+            pady=10
+        )
+
+        ttk.Button(
+            buttons_frame,
+            text="Cancel",
+            command=self._close
+        ).pack(
+            side="right",
+            padx=(5, 0)
+        )
+
+        ttk.Button(
+            buttons_frame,
+            text="Save",
+            command=self._save
+        ).pack(
+            side="right"
+        )
 
     def _load_note(self):
         if self.note is None:
             now = datetime.now().replace(microsecond=0)
-            self.date_label.config(text=now.strftime("%Y-%m-%d %H:%M:%S"))
+
+            self.date_label.config(
+                text=now.strftime("%Y-%m-%d %H:%M:%S")
+            )
+
             self.theme_entry.focus_set()
+
             return
 
-        self.theme_entry.insert(0, self.note.theme)
-        self.date_label.config(text=self.note.date.strftime("%Y-%m-%d %H:%M:%S"))
-        self.text.insert("1.0", self.note.note)
+        self.theme_entry.insert(
+            0,
+            self.note.theme
+        )
+
+        self.date_label.config(
+            text=self.note.date.strftime("%Y-%m-%d %H:%M:%S")
+        )
+
+        self.text.insert(
+            "1.0",
+            self.note.note
+        )
+
         self.text.focus_set()
 
-    def _save(self):
+    # ==========================================================
+    # Shortcuts
+    # ==========================================================
+
+    def _setup_shortcuts(self):
+
+        # Text editor
+        self.text.bind(
+            "<Control-c>",
+            self._copy
+        )
+
+        self.text.bind(
+            "<Control-v>",
+            self._paste
+        )
+
+        self.text.bind(
+            "<Control-x>",
+            self._cut
+        )
+
+        self.text.bind(
+            "<Control-a>",
+            self._select_all
+        )
+
+        self.text.bind(
+            "<Control-z>",
+            self._undo
+        )
+
+        self.text.bind(
+            "<Control-y>",
+            self._redo
+        )
+
+        # Save
+        self.bind(
+            "<Control-s>",
+            self._save
+        )
+
+    def _copy(self, event=None):
+        self.text.event_generate("<<Copy>>")
+        return "break"
+
+    def _paste(self, event=None):
+        self.text.event_generate("<<Paste>>")
+        return "break"
+
+    def _cut(self, event=None):
+        self.text.event_generate("<<Cut>>")
+        return "break"
+
+    def _select_all(self, event=None):
+        self.text.tag_add(
+            "sel",
+            "1.0",
+            "end"
+        )
+
+        self.text.mark_set(
+            "insert",
+            "1.0"
+        )
+
+        self.text.see("insert")
+
+        return "break"
+
+    def _undo(self, event=None):
+        try:
+            self.text.edit_undo()
+        except tk.TclError:
+            pass
+
+        return "break"
+
+    def _redo(self, event=None):
+        try:
+            self.text.edit_redo()
+        except tk.TclError:
+            pass
+
+        return "break"
+
+    # ==========================================================
+    # Save / Close
+    # ==========================================================
+
+    def _save(self, event=None):
         theme = self.theme_entry.get().strip()
         text = self.text.get("1.0", "end-1c")
 
         if not theme:
-            messagebox.showwarning("Empty theme", "Theme cannot be empty.", parent=self)
+            messagebox.showwarning(
+                "Empty theme",
+                "Theme cannot be empty.",
+                parent=self
+            )
+
             self.theme_entry.focus_set()
-            return
+
+            return "break"
 
         if self.note is not None:
             self.note.theme = theme
             self.note.note = text
+
         else:
-            self.notes_window.notes_manager.create_note(theme=theme, note=text)
+            self.notes_window.notes_manager.create_note(
+                theme=theme,
+                note=text
+            )
 
         self.notes_window.notes_manager.write_notes()
         self.notes_window.refresh()
+
         self._close()
+
+        return "break"
 
     def _close(self):
         self.grab_release()
         self.destroy()
-
+        
+        
 class NotesWindow(tk.Toplevel):
     def __init__(self, parent, notes_manager: NotesManager):
         super().__init__(parent)

@@ -1,51 +1,58 @@
 ### 🔧 Полезные мелкие утилиты
-1) Clipboard Manager
- - хранить последние N скопированных текстов;
- - поиск по истории;
- - клик → вставить;
- - отдельная кнопка очистки.
-2) Quick Notes
- - маленькие заметки прямо из Toolkit;
- - notes/2026-09-14.txt;
- - поиск по заметкам.
-3) File Renamer
- - выбрать папку;
- - показать файлы;
 
- - шаблон:
-    ```
-    file_001.xlsx
-    file_002.xlsx
-    file_003.xlsx
-    ```
- - замена текста в именах;
- - добавление даты.
+1) Clipboard Manager
+
+- хранить последние N скопированных текстов;
+- поиск по истории;
+- клик → вставить;
+- отдельная кнопка очистки.
+
+2) ~~Quick Notes~~
+
+- ~~маленькие заметки прямо из Toolkit;~~
+- ~~notes/2026-09-14.txt;~~
+- ~~поиск по заметкам.~~
+
+3) File Renamer
+
+- выбрать папку;
+- показать файлы;
+- шаблон:
+
+  ```
+  file_001.xlsx
+  file_002.xlsx
+  file_003.xlsx
+  ```
+- замена текста в именах;
+- добавление даты.
 
 4) File Organizer
 
-    ```
-    Downloads/
-    ├── pdf/
-    ├── images/
-    ├── archives/
-    ├── documents/
-    └── other/
-    ```
+   ```
+   Downloads/
+   ├── pdf/
+   ├── images/
+   ├── archives/
+   ├── documents/
+   └── other/
+   ```
 
 Одной кнопкой разложить Downloads.
 
 5) Duplicate Finder
- - поиск одинаковых файлов по hash;
- - показать размер;
- - возможность удалить/переместить дубли.
+
+- поиск одинаковых файлов по hash;
+- показать размер;
+- возможность удалить/переместить дубли.
 
 6) Folder Size Analyzer
 
-    ```
-    Downloads       12.4 GB
-    Projects         8.1 GB
-    Videos           5.7 GB
-    ```
+   ```
+   Downloads       12.4 GB
+   Projects         8.1 GB
+   Videos           5.7 GB
+   ```
 
 Очень простая, но прикольная штука.
 
@@ -57,17 +64,13 @@
 
 Не полноценный Task Manager, а просто:
 
-    ```
-    chrome.exe       12 processes
-    python.exe        3 processes
-    Code.exe          5 processes
-    ```
+    ``    chrome.exe       12 processes     python.exe        3 processes     Code.exe          5 processes    ``
 
 И кнопки:
 
- - refresh
- - kill process
- - kill all selected
+- refresh
+- kill process
+- kill all selected
 
 8) Quick Commands
 
@@ -110,16 +113,12 @@ CLOSED
 
 Например:
 
-    ```
-    PostgreSQL      :5432
-    Django           :8000
-    Jupyter          :8888
-    Airflow          :8080
-    ```
-    
+    ``    PostgreSQL      :5432     Django           :8000     Jupyter          :8888     Airflow          :8080    ``
+
 Кнопки запуска/открытия.
 
 ### 🐍 Python-штуки
+
 11) JSON Viewer
 
 Вставил:
@@ -132,10 +131,10 @@ CLOSED
 
 Плюс:
 
- - format;
- - minify;
- - validate;
- - copy.
+- format;
+- minify;
+- validate;
+- copy.
 
 12) CSV/Excel Inspector
 
@@ -183,14 +182,15 @@ WHERE x = 1
 
 Можно:
 
- - создать таблицу;
- - загрузить CSV;
- - выполнять SQL;
- - смотреть результат.
+- создать таблицу;
+- загрузить CSV;
+- выполнять SQL;
+- смотреть результат.
 
 Вот это я бы особенно добавил, учитывая твой DE интерес.
 
 ### 📊 Data/DE направление
+
 15) CSV → SQLite
 
 Выбираешь:
@@ -301,6 +301,7 @@ Git
 ---
 
 ### И я бы добавил одну большую штуку
+
 ### 🚀 Launcher
 
 У тебя уже есть запуск программ. Можно развить его в универсальный launcher:
@@ -340,4 +341,4 @@ sql
 
 → SQL Playground
 
-А потом можно добавить горячую клавишу типа Ctrl+Space, и Toolkit превращается в твой маленький <b>PowerToys/Alfred/Everything-подобный launcher.</b>
+А потом можно добавить горячую клавишу типа Ctrl+Space, и Toolkit превращается в твой маленький `<b>`PowerToys/Alfred/Everything-подобный launcher.`</b>`
