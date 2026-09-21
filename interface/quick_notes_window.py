@@ -195,43 +195,26 @@ class NoteEditor(tk.Toplevel):
     # ==========================================================
 
     def _setup_shortcuts(self):
+        for widget in (self.theme_entry, self.text):
+            widget.bind("<Control-KeyPress>", self._handle_shortcut)
 
-        # Text editor
-        self.text.bind(
-            "<Control-c>",
-            self._copy
-        )
 
-        self.text.bind(
-            "<Control-v>",
-            self._paste
-        )
+    def _handle_shortcut(self, event):
+        shortcuts = {
+            65: self._select_all,  # A
+            67: self._copy,        # C
+            86: self._paste,       # V
+            88: self._cut,         # X
+            90: self._undo,        # Z
+            89: self._redo,        # Y
+            83: self._save,        # S
+        }
 
-        self.text.bind(
-            "<Control-x>",
-            self._cut
-        )
+        command = shortcuts.get(event.keycode)
 
-        self.text.bind(
-            "<Control-a>",
-            self._select_all
-        )
-
-        self.text.bind(
-            "<Control-z>",
-            self._undo
-        )
-
-        self.text.bind(
-            "<Control-y>",
-            self._redo
-        )
-
-        # Save
-        self.bind(
-            "<Control-s>",
-            self._save
-        )
+        if command is not None:
+            command()
+            return "break"
 
     def _copy(self, event=None):
         self.text.event_generate("<<Copy>>")
