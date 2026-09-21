@@ -1,33 +1,60 @@
 
 # Toolkit
 
-Personal Python desktop toolkit for managing projects, notes, tasks, settings, and frequently used development utilities.
+Personal Python desktop toolkit for managing projects, tasks, notes, settings, and frequently used development utilities.
 
 Toolkit is a small modular application built with Python and Tkinter. It combines several everyday development utilities in one place instead of relying on a collection of separate scripts.
 
 ## Features
 
+### Project Initialization
+
+Toolkit performs a first-run project initialization through `init.py`.
+
+The initialization process:
+
+* creates the initial `settings.ini`;
+* configures the application working directory;
+* creates required directories;
+* creates the initial `notes.json`;
+* checks required Python dependencies;
+* installs missing Python packages when necessary;
+* reports the initialization result.
+
+Initialization is designed for the **first launch** of the application and is not intended to act as a self-healing system.
+
+Once `settings.ini` exists, the project is considered initialized and the existing configuration is loaded instead of recreating the project structure.
+
 ### Project & Task Management
 
 * Project initialization
 * Task/project activation
+* Configurable working directory
 * Configurable project directory architecture
-* Working directory management
-* Automatic creation of configured directories
+* Automatic creation of required directories
 * Task activation and workspace management
 
 ### Settings
 
-* Persistent configuration via `settings.ini`
-* Configurable working directory
-* Configurable project architecture
-* Program configuration
-* Optional logging
-* GUI-based settings management
+Toolkit uses `settings.ini` for persistent configuration.
+
+The configuration system supports:
+
+* application settings;
+* working directory;
+* temporary directory;
+* notes directory;
+* program configuration;
+* project architecture;
+* optional logging.
+
+Settings can be managed through the graphical interface.
 
 ### Quick Notes
 
-A built-in lightweight notes manager for storing development notes and temporary information.
+Toolkit includes a lightweight local notes manager for storing development notes and temporary information.
+
+Features include:
 
 * Create notes
 * Edit notes
@@ -51,13 +78,13 @@ Ctrl + Y    Redo
 Ctrl + S    Save
 ```
 
-Notes are stored locally and do not require an external database.
+Notes are stored locally in `notes.json`.
 
 ### Quick Commands
 
-A GUI for frequently used development and system commands.
+Toolkit provides a GUI for frequently used development and system commands.
 
-Planned/available commands include:
+Examples include:
 
 ```text
 Git
@@ -79,19 +106,18 @@ Development
 └── Open Explorer here
 ```
 
-Commands are executed relative to the configured working directory.
+Commands are intended to operate relative to the configured working directory.
 
 ### Utilities & Games
 
-Toolkit also provides small standalone utilities and experiments that can be launched from the GUI.
+Toolkit can also contain small standalone utilities and experiments.
 
 Current examples include:
 
 * Minesweeper
 * Tic-Tac-Toe
-* Additional utilities can be added as independent modules
 
-The project is intentionally modular, so experimental features do not have to be tightly coupled to the main application.
+Additional utilities can be added as independent modules without significantly changing the core application.
 
 ---
 
@@ -110,7 +136,6 @@ Toolkit/
 │   └── ...
 │
 ├── interface/
-│   ├── ...
 │   ├── open_settings_util.py
 │   ├── notes.py
 │   └── ...
@@ -128,7 +153,7 @@ Toolkit/
 └── ...
 ```
 
-The exact structure may change as new utilities and modules are added.
+The exact project structure may change as new utilities are added.
 
 ---
 
@@ -142,37 +167,53 @@ Responsible for:
 
 * starting Toolkit;
 * processing command-line arguments;
+* initializing the project;
 * loading configuration;
-* initializing the project environment;
 * launching the GUI;
-* starting the required modules.
+* starting required modules.
 
-### `scripts/`
+### `scripts/init.py`
 
-Contains the core application logic.
+Handles the initial project setup.
 
-Examples:
+Responsibilities include:
 
-* `init.py` — project/environment initialization.
-* `activation_new_task.py` — task/project activation.
-* `settings_manager.py` — reading and writing configuration.
-* Additional modules provide reusable application functionality.
+* defining default configuration;
+* creating `settings.ini`;
+* determining the working directory;
+* creating required directories;
+* creating the initial notes database;
+* checking required Python packages;
+* installing missing dependencies;
+* returning initialization status information.
+
+The initialization process is intentionally  **not self-healing** . Existing configuration is preserved and reused on subsequent launches.
+
+### `scripts/activation_new_task.py`
+
+Handles creation and activation of new tasks/projects according to the configured project architecture.
+
+### `scripts/settings_manager.py`
+
+Responsible for reading and writing Toolkit configuration.
+
+It provides the interface between `settings.ini` and the Python application.
 
 ### `interface/`
 
-Contains the Tkinter-based graphical interface.
+Contains the Tkinter graphical interface.
 
-Examples include:
+Current GUI components include functionality for:
 
-* settings management;
-* notes;
+* settings;
 * task activation;
+* notes;
 * quick commands;
-* other GUI utilities.
+* other utilities.
 
 ### `games/`
 
-Contains standalone games and experiments implemented as independent modules.
+Contains standalone games and experimental modules.
 
 ### `db/`
 
@@ -187,30 +228,107 @@ db/
 
 No external database is required.
 
+### `logs/`
+
+Directory used for optional application logging when logging is enabled.
+
 ---
 
 ## Configuration
 
 Toolkit uses `settings.ini` for persistent configuration.
 
-Example:
+A minimal configuration may look like:
 
 ```ini
 [BASE]
 log = false
 
 [DIRS]
-working_dir = ./
+working_dir = C:/Projects/Toolkit
+temp_dir = ../temp
+notes_dir = ./db
+
+[PROGRAMS]
 
 [ARCHITECTURE]
-active = ../active
-complete = ../complete
-tests = ../tests
 ```
 
-The configuration system converts stored values into appropriate Python types when loading settings.
+During first initialization, default settings are generated automatically.
 
-The GUI can be used to modify supported settings without manually editing the configuration file.
+The working directory is stored as an absolute path, while other directory settings can remain relative to it.
+
+The configuration can subsequently be edited through the Toolkit settings interface.
+
+---
+
+## Initialization
+
+On the first launch, Toolkit performs the initialization process.
+
+Conceptually:
+
+```text
+First launch
+     │
+     ▼
+Check settings.ini
+     │
+     ├── exists ──────────────► Load existing settings
+     │
+     └── does not exist
+              │
+              ▼
+       Create default settings
+              │
+              ▼
+       Create directories
+              │
+              ▼
+        Create notes.json
+              │
+              ▼
+       Check dependencies
+              │
+              ▼
+        Initialization done
+```
+
+The initialization function returns a result dictionary containing information such as:
+
+```python
+{
+    "success": True,
+    "initialized": True,
+    "working_dir": "...",
+    "created": [...],
+    "missing_packages": [...]
+}
+```
+
+---
+
+## Dependencies
+
+Toolkit requires Python 3.x and Tkinter.
+
+Some functionality also uses additional Python packages.
+
+Current dependencies checked during initialization include:
+
+```text
+tqdm
+configparser
+pystray
+```
+
+Missing packages are handled by the initialization process using the current Python interpreter:
+
+```bash
+python -m pip install <package>
+```
+
+The exact dependency list may change as new features are added.
 
 ---
 
@@ -243,20 +361,27 @@ Example options:
 
 Additional CLI options may be added as the project evolves.
 
+### Initialization Directly
+
+The initialization module can also be executed directly:
+
+```bash
+python scripts/init.py
+```
+
+This runs the initialization procedure and prints the resulting status.
+
 ---
 
 ## Requirements
 
 * Python 3.x
 * Tkinter
+* Git — required only for Git-related commands
+* VS Code — optional, for the VS Code launcher
+* Additional Python packages used by Toolkit
 
 No external database or web service is required for the core application.
-
-Optional functionality may depend on external programs being installed and available in the system `PATH`, for example:
-
-* Git
-* Python / pip
-* VS Code
 
 ---
 
@@ -273,7 +398,8 @@ The project focuses on:
 * creating reusable utilities;
 * managing small personal projects and tasks;
 * keeping application data local;
-* allowing new features to be added without significantly changing the existing core.
+* making project configuration accessible through a GUI;
+* allowing new features to be added as independent modules.
 
 The application is intentionally lightweight and modular.
 
@@ -283,7 +409,7 @@ The application is intentionally lightweight and modular.
 
 **Work in progress.**
 
-Toolkit is an actively evolving personal project. Features, interfaces, project structure, and configuration options may change as new utilities are developed.
+Toolkit is an actively evolving personal project. Features, interfaces, configuration options, and project structure may change as new utilities are developed.
 
 Some components are experimental and may be redesigned or replaced.
 
