@@ -4,7 +4,7 @@ from datetime import datetime
 from scripts.note_manager import NotesManager, Note
 
 class NoteEditor(tk.Toplevel):
-
+    INDENT_SIZE = 4
     def __init__(self, parent, notes_window, note=None):
         super().__init__(parent)
 
@@ -195,9 +195,14 @@ class NoteEditor(tk.Toplevel):
     # ==========================================================
 
     def _setup_shortcuts(self):
+        # Ctrl + клавиши.
+        # Используем keycode, чтобы работало независимо
+        # от русской / английской раскладки.
         for widget in (self.theme_entry, self.text):
             widget.bind("<Control-KeyPress>", self._handle_shortcut)
 
+        # Tab
+        self.text.bind("<Tab>", self._handle_tab)
 
     def _handle_shortcut(self, event):
         shortcuts = {
@@ -260,6 +265,117 @@ class NoteEditor(tk.Toplevel):
 
         return "break"
 
+    def _handle_tab(self, event):
+        if event.state & 0x0001:
+            return self._unindent()
+
+        return self._indent()
+
+    # ==========================================================
+    # Indentation
+    # ==========================================================
+
+    def _indent(self):
+        """
+        Увеличивает отступ на 4 пробела.
+
+        Без выделения:
+            вставляет 4 пробела в текущую позицию.
+
+        С выделением:
+            добавляет 4 пробела в начало каждой выбранной строки.
+        """
+        text = self.text
+        indent = " " * self.INDENT_SIZE
+
+        try:
+            start = text.index("sel.first")
+            end = text.index("sel.last")
+        except tk.TclError:
+            # Нет выделения
+            text.insert("insert", indent)
+            return "break"
+
+        start_line = int(start.split(".")[0])
+        end_line = int(end.split(".")[0])
+
+        # Если выделение заканчивается ровно в начале строки,
+        # последнюю строку не трогаем.
+        end_column = int(end.split(".")[1])
+
+        if end_column == 0 and end_line > start_line:
+            end_line -= 1
+
+        for line in range(start_line, end_line + 1):
+            text.insert(f"{line}.0", indent)
+
+        return "break"
+
+
+    def _unindent(self):
+        """
+        Уменьшает отступ на 4 пробела.
+
+        Без выделения:
+            удаляет до 4 пробелов в начале текущей строки.
+
+        С выделением:
+            убирает до 4 пробелов из начала каждой выбранной строки.
+        """
+        text = self.text
+
+        try:
+            start = text.index("sel.first")
+            end = text.index("sel.last")
+        except tk.TclError:
+            # Нет выделения
+            line = int(text.index("insert").split(".")[0])
+            self._remove_line_indent(line)
+            return "break"
+
+        start_line = int(start.split(".")[0])
+        end_line = int(end.split(".")[0])
+
+        end_column = int(end.split(".")[1])
+
+        if end_column == 0 and end_line > start_line:
+            end_line -= 1
+
+        for line in range(start_line, end_line + 1):
+            self._remove_line_indent(line)
+
+        return "break"
+
+
+    def _remove_line_indent(self, line):
+        """
+        Удаляет до INDENT_SIZE пробелов из начала строки.
+        """
+        text = self.text
+
+        line_start = f"{line}.0"
+        line_end = f"{line}.{self.INDENT_SIZE}"
+
+        content = text.get(line_start, line_end)
+
+        if not content:
+            return
+
+        # Удаляем максимум 4 пробела.
+        spaces = 0
+
+        for char in content:
+            if char == " " and spaces < self.INDENT_SIZE:
+                spaces += 1
+            else:
+                break
+
+        if spaces:
+            text.delete(
+                line_start,
+                f"{line}.{spaces}"
+            )
+        
     # ==========================================================
     # Save / Close
     # ==========================================================
