@@ -9,6 +9,7 @@ from interface.tray import setup_tray
 from interface.quick_notes_window import open_notes
 from interface.open_settings_window import open_settings
 from interface.open_activation_window import open_activation
+from interface.quick_commands_window import open_quick_commands
 
 from games.minesweeper.main import main as mineswipper_main
 from games.tic_tac_toe.main import main as tic_tac_toe_main
@@ -30,6 +31,7 @@ BUTTONS = [
     ("launcher", "Launch work setup", launch_selected_programs, (BASE_SETTINGS,)),
     ("activation", "Activate new task", open_activation, (root, Path(BASE_SETTINGS["DIRS"]["working_dir"]), BASE_SETTINGS)),
     ("notes", "Quick Notes", open_notes, (root, notes_manager)),
+    ("quick_commands", "Quick Commands", open_quick_commands, (root, BASE_DIR, BASE_SETTINGS)),
     ("mineswipper", "Mineswipper", mineswipper_main, ()),
     ("tic_tac_toe", "Tic-Tak-Toe", tic_tac_toe_main, ()),
     ("settings", "Settings", open_settings, (root, BASE_DIR, BASE_SETTINGS,)),

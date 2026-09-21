@@ -7,10 +7,10 @@ __pycache__/
 *.so
 
 # Settings
-settings.ini
+*.ini
 
 # Notes
-notes.json
+*.json
 
 # Distribution / packaging
 .Python
