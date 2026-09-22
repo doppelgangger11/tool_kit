@@ -425,6 +425,7 @@ class NotesWindow(tk.Toplevel):
         self.geometry("700x600")
         self.minsize(500, 400)
         self._create_widgets()
+        self._setup_shortcuts()
         self.refresh()
         self.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -432,111 +433,477 @@ class NotesWindow(tk.Toplevel):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
+        # ==========================================================
+        # Top panel
+        # ==========================================================
+
         top_frame = ttk.Frame(self)
-        top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
-        ttk.Button(top_frame, text="+ New note", command=self.new_note).pack(side="left")
-        ttk.Button(top_frame, text="↻ Refresh", command=self.refresh).pack(side="left", padx=5)
+        top_frame.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=10,
+            pady=10
+        )
+
+        top_frame.columnconfigure(2, weight=1)
+
+        # New note
+        ttk.Button(
+            top_frame,
+            text="+ New note",
+            command=self.new_note
+        ).grid(
+            row=0,
+            column=0,
+            padx=(0, 5)
+        )
+
+        # Refresh
+        ttk.Button(
+            top_frame,
+            text="↻ Refresh",
+            command=self.refresh
+        ).grid(
+            row=0,
+            column=1,
+            padx=(0, 10)
+        )
+
+        # Search
+        ttk.Label(
+            top_frame,
+            text="Search:"
+        ).grid(
+            row=0,
+            column=2,
+            sticky="e",
+            padx=(0, 5)
+        )
+
+        self.search_var = tk.StringVar()
+
+        self.search_entry = ttk.Entry(
+            top_frame,
+            textvariable=self.search_var
+        )
+        self.search_entry.grid(
+            row=0,
+            column=3,
+            sticky="ew"
+        )
+
+        top_frame.columnconfigure(3, weight=1)
+
+        # Clear search
+        ttk.Button(
+            top_frame,
+            text="✕",
+            width=3,
+            command=self._clear_search
+        ).grid(
+            row=0,
+            column=4,
+            padx=(5, 0)
+        )
+
+        # Search whenever text changes
+        self.search_var.trace_add(
+            "write",
+            self._on_search_changed
+        )
+
+        # ==========================================================
+        # Notes container
+        # ==========================================================
 
         container = ttk.Frame(self)
-        container.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+
+        container.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=10,
+            pady=(0, 10)
+        )
+
         container.rowconfigure(0, weight=1)
         container.columnconfigure(0, weight=1)
 
-        self.canvas = tk.Canvas(container, highlightthickness=0)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.canvas = tk.Canvas(
+            container,
+            highlightthickness=0
+        )
 
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.grid(
+            row=0,
+            column=0,
+            sticky="nsew"
+        )
 
-        self.notes_frame = ttk.Frame(self.canvas)
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.notes_frame, anchor="nw")
+        scrollbar = ttk.Scrollbar(
+            container,
+            orient="vertical",
+            command=self.canvas.yview
+        )
 
-        self.notes_frame.bind("<Configure>", self._update_scrollregion)
-        self.canvas.bind("<Configure>", self._resize_inner_frame)
-        self.canvas.bind("<Enter>", self._enable_mousewheel)
-        self.canvas.bind("<Leave>", self._disable_mousewheel)
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns"
+        )
+
+        self.canvas.configure(
+            yscrollcommand=scrollbar.set
+        )
+
+        self.notes_frame = ttk.Frame(
+            self.canvas
+        )
+
+        self.canvas_window = self.canvas.create_window(
+            (0, 0),
+            window=self.notes_frame,
+            anchor="nw"
+        )
+
+        self.notes_frame.bind(
+            "<Configure>",
+            self._update_scrollregion
+        )
+
+        self.canvas.bind(
+            "<Configure>",
+            self._resize_inner_frame
+        )
+
+        self.canvas.bind(
+            "<Enter>",
+            self._enable_mousewheel
+        )
+
+        self.canvas.bind(
+            "<Leave>",
+            self._disable_mousewheel
+        )
+
+    # ==========================================================
+    # Shortcuts
+    # ==========================================================
+
+    def _setup_shortcuts(self):
+
+        self.bind(
+            "<Control-f>",
+            self._focus_search
+        )
+
+        self.bind(
+            "<Escape>",
+            self._clear_search
+        )
+
+    def _focus_search(self, event=None):
+
+        self.search_entry.focus_set()
+        self.search_entry.select_range(0, "end")
+
+        return "break"
+
+    def _clear_search(self, event=None):
+
+        self.search_var.set("")
+        self.search_entry.focus_set()
+
+        return "break"
+
+    # ==========================================================
+    # Search
+    # ==========================================================
+
+    def _on_search_changed(self, *args):
+
+        self.refresh()
+
+    def _filter_notes(self, notes):
+
+        query = self.search_var.get().strip().lower()
+
+        if not query:
+            return notes
+
+        result = []
+
+        for note in notes:
+
+            theme = note.theme.lower()
+            text = note.note.lower()
+
+            if query in theme or query in text:
+                result.append(note)
+
+        return result
+
+    # ==========================================================
+    # Mouse wheel
+    # ==========================================================
 
     def _enable_mousewheel(self, event=None):
-        self.canvas.bind_all("<MouseWheel>", self._mousewheel)
+
+        self.canvas.bind_all(
+            "<MouseWheel>",
+            self._mousewheel
+        )
 
     def _disable_mousewheel(self, event=None):
-        self.canvas.unbind_all("<MouseWheel>")
-    
+
+        self.canvas.unbind_all(
+            "<MouseWheel>"
+        )
+
     def _update_scrollregion(self, event=None):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+        self.canvas.configure(
+            scrollregion=self.canvas.bbox("all")
+        )
 
     def _resize_inner_frame(self, event):
-        self.canvas.itemconfigure(self.canvas_window, width=event.width)
+
+        self.canvas.itemconfigure(
+            self.canvas_window,
+            width=event.width
+        )
 
     def _mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        self.canvas.yview_scroll(
+            int(-1 * (event.delta / 120)),
+            "units"
+        )
+
+    # ==========================================================
+    # Notes
+    # ==========================================================
 
     def refresh(self):
+        # Remove existing cards
         for widget in self.notes_frame.winfo_children():
             widget.destroy()
 
-        notes = sorted(self.notes_manager.notes, key=lambda note: note.date, reverse=True)
+        # Sort all notes
+        notes = sorted(
+            self.notes_manager.notes,
+            key=lambda note: note.date,
+            reverse=True
+        )
 
+        # Apply search
+        notes = self._filter_notes(notes)
+
+        # Nothing found
         if not notes:
-            ttk.Label(self.notes_frame, text="No notes yet.").pack(pady=30)
+
+            if self.search_var.get().strip():
+
+                ttk.Label(
+                    self.notes_frame,
+                    text="No matching notes."
+                ).pack(
+                    pady=30
+                )
+
+            else:
+
+                ttk.Label(
+                    self.notes_frame,
+                    text="No notes yet."
+                ).pack(
+                    pady=30
+                )
+
+            self._update_scrollregion()
+
             return
 
+        # Create cards
         for note in notes:
             self._create_note_widget(note)
 
         self._update_scrollregion()
 
     def _create_note_widget(self, note):
-        frame = ttk.Frame(self.notes_frame, relief="ridge", borderwidth=1)
-        frame.pack(fill="x", pady=4)
-        frame.columnconfigure(0, weight=1)
+
+        frame = ttk.Frame(
+            self.notes_frame,
+            relief="ridge",
+            borderwidth=1
+        )
+
+        frame.pack(
+            fill="x",
+            pady=4
+        )
+
+        frame.columnconfigure(
+            0,
+            weight=1
+        )
 
         info_frame = ttk.Frame(frame)
-        info_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=8)
-        info_frame.columnconfigure(0, weight=1)
 
-        theme_label = ttk.Label(info_frame, text=note.theme, font=("TkDefaultFont", 11, "bold"))
-        theme_label.grid(row=0, column=0, sticky="w")
+        info_frame.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=10,
+            pady=8
+        )
 
-        date_label = ttk.Label(info_frame, text=note.date.strftime("%Y-%m-%d %H:%M:%S"))
-        date_label.grid(row=1, column=0, sticky="w")
+        info_frame.columnconfigure(
+            0,
+            weight=1
+        )
 
-        preview = note.note.replace("\n", " ")
+        # Theme
+        theme_label = ttk.Label(
+            info_frame,
+            text=note.theme,
+            font=("TkDefaultFont", 11, "bold")
+        )
+
+        theme_label.grid(
+            row=0,
+            column=0,
+            sticky="w"
+        )
+
+        # Date
+        date_label = ttk.Label(
+            info_frame,
+            text=note.date.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+
+        date_label.grid(
+            row=1,
+            column=0,
+            sticky="w"
+        )
+
+        # Preview
+        preview = note.note.replace(
+            "\n",
+            " "
+        )
+
         if len(preview) > 100:
             preview = preview[:100] + "..."
 
-        preview_label = ttk.Label(info_frame, text=preview)
-        preview_label.grid(row=2, column=0, sticky="w", pady=(5, 0))
+        preview_label = ttk.Label(
+            info_frame,
+            text=preview
+        )
 
+        preview_label.grid(
+            row=2,
+            column=0,
+            sticky="w",
+            pady=(5, 0)
+        )
+
+        # Buttons
         buttons_frame = ttk.Frame(frame)
-        buttons_frame.grid(row=0, column=1, sticky="ns", padx=10)
 
-        ttk.Button(buttons_frame, text="✍", width=3, command=lambda n=note: self.edit_note(n)).pack(side="left", padx=2)
-        ttk.Button(buttons_frame, text="🗑", width=3, command=lambda n=note: self.delete_note(n)).pack(side="left", padx=2)
+        buttons_frame.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+            padx=10
+        )
 
-        for widget in (frame, info_frame, theme_label, date_label, preview_label):
-            widget.bind("<Button-1>", lambda event, n=note: self.edit_note(n))
+        ttk.Button(
+            buttons_frame,
+            text="✍",
+            width=3,
+            command=lambda n=note: self.edit_note(n)
+        ).pack(
+            side="left",
+            padx=2
+        )
+
+        ttk.Button(
+            buttons_frame,
+            text="🗑",
+            width=3,
+            command=lambda n=note: self.delete_note(n)
+        ).pack(
+            side="left",
+            padx=2
+        )
+
+        # Click card -> edit
+        for widget in (
+            frame,
+            info_frame,
+            theme_label,
+            date_label,
+            preview_label
+        ):
+
+            widget.bind(
+                "<Button-1>",
+                lambda event, n=note: self.edit_note(n)
+            )
+
+    # ==========================================================
+    # Note actions
+    # ==========================================================
 
     def new_note(self):
-        NoteEditor(self, self)
+
+        NoteEditor(
+            self,
+            self
+        )
 
     def edit_note(self, note):
-        NoteEditor(self, self, note)
+
+        NoteEditor(
+            self,
+            self,
+            note
+        )
 
     def delete_note(self, note):
-        result = messagebox.askyesno("Delete note", f'Delete "{note.theme}"?', parent=self)
+
+        result = messagebox.askyesno(
+            "Delete note",
+            f'Delete "{note.theme}"?',
+            parent=self
+        )
+
         if not result:
             return
 
-        self.notes_manager.delete(note.id)
+        self.notes_manager.delete(
+            note.id
+        )
+
         self.notes_manager.write_notes()
         self.refresh()
 
+    # ==========================================================
+    # Close
+    # ==========================================================
+
     def _close(self):
-        self.canvas.unbind_all("<MouseWheel>")
+
+        self.canvas.unbind_all(
+            "<MouseWheel>"
+        )
+
         self.destroy()
- 
         
 notes_window = None
 
