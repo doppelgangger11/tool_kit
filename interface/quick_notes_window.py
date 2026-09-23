@@ -204,6 +204,9 @@ class NoteEditor(tk.Toplevel):
         # Tab
         self.text.bind("<Tab>", self._handle_tab)
 
+        # Escape -> Cancel / close without saving
+        self.bind("<Escape>", self._close)
+
     def _handle_shortcut(self, event):
         shortcuts = {
             65: self._select_all,  # A
@@ -412,9 +415,10 @@ class NoteEditor(tk.Toplevel):
 
         return "break"
 
-    def _close(self):
-        self.grab_release()
-        self.destroy()
+    def _close(self, event=None): 
+        self.grab_release() 
+        self.destroy() 
+        return "break"
         
         
 class NotesWindow(tk.Toplevel):
