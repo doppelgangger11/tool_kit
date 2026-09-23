@@ -690,11 +690,15 @@ class NotesWindow(tk.Toplevel):
         for widget in self.notes_frame.winfo_children():
             widget.destroy()
 
-        # Sort all notes
+        # Sort:
+        # 1. Pinned notes first
+        # 2. Newest notes first
         notes = sorted(
             self.notes_manager.notes,
-            key=lambda note: note.date,
-            reverse=True
+            key=lambda note: (
+                not note.pinned,
+                -note.date.timestamp()
+            )
         )
 
         # Apply search
@@ -702,18 +706,14 @@ class NotesWindow(tk.Toplevel):
 
         # Nothing found
         if not notes:
-
             if self.search_var.get().strip():
-
                 ttk.Label(
                     self.notes_frame,
                     text="No matching notes."
                 ).pack(
                     pady=30
                 )
-
             else:
-
                 ttk.Label(
                     self.notes_frame,
                     text="No notes yet."
@@ -722,7 +722,6 @@ class NotesWindow(tk.Toplevel):
                 )
 
             self._update_scrollregion()
-
             return
 
         # Create cards
@@ -732,7 +731,6 @@ class NotesWindow(tk.Toplevel):
         self._update_scrollregion()
 
     def _create_note_widget(self, note):
-
         frame = ttk.Frame(
             self.notes_frame,
             relief="ridge",
@@ -822,16 +820,20 @@ class NotesWindow(tk.Toplevel):
             padx=10
         )
 
-        ttk.Button(
+        # Pin
+        pin_button = ttk.Button(
             buttons_frame,
-            text="✍",
+            text="📍" if note.pinned else "📌",
             width=3,
-            command=lambda n=note: self.edit_note(n)
-        ).pack(
+            command=lambda n=note: self.toggle_pin(n)
+        )
+
+        pin_button.pack(
             side="left",
             padx=2
         )
 
+        # Delete
         ttk.Button(
             buttons_frame,
             text="🗑",
@@ -850,11 +852,15 @@ class NotesWindow(tk.Toplevel):
             date_label,
             preview_label
         ):
-
             widget.bind(
                 "<Button-1>",
                 lambda event, n=note: self.edit_note(n)
             )
+
+    def toggle_pin(self, note):
+        self.notes_manager.toggle_pin(note)
+        self.notes_manager.write_notes()
+        self.refresh()
 
     # ==========================================================
     # Note actions

@@ -8,19 +8,22 @@ class Note:
         id: int,
         theme: str,
         note: str,
-        date: datetime | None = None
+        date: datetime | None = None,
+        pinned: bool = False
     ):
         self.id = id
         self.theme = theme
         self.note = note
         self.date = date or datetime.now().replace(microsecond=0)
+        self.pinned = pinned
 
     def to_dict(self):
         return {
             'id': self.id,
             'theme': self.theme,
             'date': self.date.strftime('%Y-%m-%d %H:%M:%S'),
-            'note': self.note
+            'note': self.note,
+            'pinned': self.pinned
         }
 
     @classmethod
@@ -32,12 +35,11 @@ class Note:
             date=datetime.strptime(
                 data['date'],
                 '%Y-%m-%d %H:%M:%S'
-            )
+            ),
+            pinned=data.get('pinned', False)
         )
 
-
 class NotesManager:
-
     def __init__(self, path='../db/notes.json'):
         self.path = path
         self.notes = []
@@ -96,3 +98,6 @@ class NotesManager:
             for note in self.notes
             if note.id != note_id
         ]
+
+    def toggle_pin(self, note):
+        note.pinned = not note.pinned
