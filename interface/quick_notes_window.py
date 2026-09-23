@@ -699,15 +699,46 @@ class NotesWindow(tk.Toplevel):
         # 2. Newest notes first
         notes = sorted(
             self.notes_manager.notes,
-            key=lambda note: (
-                not note.pinned,
-                -note.date.timestamp()
-            )
+            key=lambda note: note.date,
+            reverse=True
         )
+
+        notes = self._filter_notes(notes)
+
+        pinned_notes = [
+            note for note in notes
+            if note.pinned
+        ]
+
+        unpinned_notes = [
+            note for note in notes
+            if not note.pinned
+        ]
 
         # Apply search
         notes = self._filter_notes(notes)
 
+        # Split pinned notes
+        if pinned_notes:
+            self._create_section("📌 Pinned")
+
+            for note in pinned_notes:
+                self._create_note_widget(note)
+
+        if unpinned_notes:
+            ttk.Separator(
+                self.notes_frame,
+                orient="horizontal"
+            ).pack(
+                fill="x",
+                pady=10
+            )
+
+            self._create_section("Unpinned Notes")
+
+            for note in unpinned_notes:
+                self._create_note_widget(note)
+        
         # Nothing found
         if not notes:
             if self.search_var.get().strip():
@@ -728,11 +759,17 @@ class NotesWindow(tk.Toplevel):
             self._update_scrollregion()
             return
 
-        # Create cards
-        for note in notes:
-            self._create_note_widget(note)
-
         self._update_scrollregion()
+        
+    def _create_section(self, title):
+        ttk.Label(
+            self.notes_frame,
+            text=title,
+            font=("TkDefaultFont", 11, "bold")
+        ).pack(
+            fill="x",
+            pady=(10, 5)
+        )
 
     def _create_note_widget(self, note):
         frame = ttk.Frame(
