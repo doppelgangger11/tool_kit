@@ -9,7 +9,7 @@ class Minesweeper:
         
         self.rows = 20
         self.cols = 20
-        self.mines_count = 70
+        self.mines_count = 70 # 70
         
         self.buttons = []
         self.mines = set()       # Координаты мин (row, col)
@@ -18,6 +18,7 @@ class Minesweeper:
         
         self.first_click = True  # Флаг для безопасного первого клика
         self.game_over = False
+        self.color_of_bombs = 'red'
 
         self.create_widgets()
 
@@ -73,6 +74,7 @@ class Minesweeper:
 
         # Проверка на победу
         if len(self.revealed) == (self.rows * self.cols) - self.mines_count:
+            self.color_of_bombs = 'green'
             self.show_mines()
             self.game_over = True
             messagebox.showinfo("Победа!", "Поздравляем! Вы очистили поле!")
@@ -134,13 +136,14 @@ class Minesweeper:
         # Показываем все мины перед закрытием раунда
         for r, c in self.mines:
             if (r, c) not in self.flags:
-                self.buttons[r][c].config(text="💣", bg="red", relief="sunken")
+                self.buttons[r][c].config(text="💣", bg=self.color_of_bombs, relief="sunken")
 
     def restart_window(self):
         # Полностью уничтожаем текущие виджеты окна и пересоздаем класс игры
         for widget in self.root.winfo_children():
             widget.destroy()
         # Переинициализируем игру заново в том же окне
+        self.color_of_bombs = 'red'
         self.__init__(self.root)
 
 def main():
