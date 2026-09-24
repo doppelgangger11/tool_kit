@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import tkinter as tk
 from tkinter import ttk
 
@@ -59,6 +60,12 @@ class ChessInterface:
 
         self.render_board()
         self.update_interface()
+
+        # Ctrl + Z
+        self.root.bind(
+            "<Control-z>",
+            self.handle_undo,
+        )
 
     # =========================================================
     # ASSETS
@@ -275,6 +282,25 @@ class ChessInterface:
             command=self.history_listbox.yview
         )
 
+        # -----------------------------------------------------
+        # Undo
+        # -----------------------------------------------------
+
+        self.undo_button = tk.Button(
+            panel,
+            text="Undo",
+            command=self.undo_move,
+        )
+
+        self.undo_button.pack(
+            fill="x",
+            pady=(0, 5),
+        )
+
+        # -----------------------------------------------------
+        # New Game
+        # -----------------------------------------------------
+
         tk.Button(
             panel,
             text="New Game",
@@ -297,6 +323,48 @@ class ChessInterface:
             return f"Bot: {self.difficulty}"
 
         return "Player vs Player"
+
+    # =========================================================
+    # UNDO
+    # =========================================================
+
+    def handle_undo(self, event=None):
+        self.undo_move()
+
+    def undo_move(self):
+        # Nothing to undo
+        if not self.game.state_history:
+            return
+
+        # Do not allow undo while bot is making its move
+        if self.is_bot_turn():
+            return
+
+        # PvP:
+        # undo one move
+        if self.game_mode == "Player vs Player":
+            self.game.undo()
+
+        # PvBot:
+        # undo player's move + bot's move
+        else:
+            self.game.undo()
+
+            # After undoing the bot's move,
+            # it should be player's turn.
+            #
+            # If it is still bot's turn,
+            # undo one more move.
+            if (
+                self.game.turn == self.bot_color
+                and self.game.state_history
+            ):
+                self.game.undo()
+
+        self.selected = None
+        self.possible_moves = []
+
+        self.update_interface()
 
     # =========================================================
     # BOARD
@@ -634,6 +702,7 @@ class ChessInterface:
         self.update_status()
         self.update_captured()
         self.update_history()
+        self.update_undo_button()
         self.render_board()
 
     def update_turn(self):
@@ -663,6 +732,22 @@ class ChessInterface:
         else:
             self.status_label.config(
                 text="Your move"
+            )
+
+    def update_undo_button(self):
+        if not self.game.state_history:
+            self.undo_button.config(
+                state="disabled"
+            )
+
+        elif self.is_bot_turn():
+            self.undo_button.config(
+                state="disabled"
+            )
+
+        else:
+            self.undo_button.config(
+                state="normal"
             )
 
     def update_captured(self):

@@ -57,6 +57,36 @@ class Chess:
             },
         }
 
+        # States before every real move.
+        self.state_history = []
+
+    def save_state(self):
+        self.state_history.append({
+            "board": deepcopy(self.board),
+            "turn": self.turn,
+            "last_move": deepcopy(self.last_move),
+            "move_history": deepcopy(self.move_history),
+            "captured_pieces": deepcopy(self.captured_pieces),
+            "game_over": self.game_over,
+            "castling_rights": deepcopy(self.castling_rights),
+        })
+
+    def undo(self):
+        if not self.state_history:
+            return False
+
+        state = self.state_history.pop()
+
+        self.board = state["board"]
+        self.turn = state["turn"]
+        self.last_move = state["last_move"]
+        self.move_history = state["move_history"]
+        self.captured_pieces = state["captured_pieces"]
+        self.game_over = state["game_over"]
+        self.castling_rights = state["castling_rights"]
+
+        return True
+
     def copy(self):
         new_game = Chess()
 
@@ -70,6 +100,9 @@ class Chess:
         new_game.game_over = self.game_over
         new_game.castling_rights = deepcopy(
             self.castling_rights
+        )
+        new_game.state_history = deepcopy(
+            self.state_history
         )
 
         return new_game
@@ -732,6 +765,10 @@ class Chess:
         if (to_row, to_col) not in legal_moves:
             return False
 
+        # Save state only after the move
+        # has been confirmed as legal.
+        self.save_state()
+
         color = piece[0]
         piece_type = piece[1]
 
@@ -797,9 +834,9 @@ class Chess:
         # -----------------------------------------------------
 
         if captured_piece is not None:
-            self.captured_pieces[captured_piece[0]].append(
-                captured_piece
-            )
+            self.captured_pieces[
+                captured_piece[0]
+            ].append(captured_piece)
 
         # -----------------------------------------------------
         # Promotion
