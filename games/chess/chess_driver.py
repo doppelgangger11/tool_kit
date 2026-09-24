@@ -57,6 +57,23 @@ class Chess:
             },
         }
 
+    def copy(self):
+        new_game = Chess()
+
+        new_game.board = deepcopy(self.board)
+        new_game.turn = self.turn
+        new_game.last_move = deepcopy(self.last_move)
+        new_game.move_history = deepcopy(self.move_history)
+        new_game.captured_pieces = deepcopy(
+            self.captured_pieces
+        )
+        new_game.game_over = self.game_over
+        new_game.castling_rights = deepcopy(
+            self.castling_rights
+        )
+
+        return new_game
+
     def create_initial_board(self):
         return [
             ["br", "bn", "bb", "bq", "bk", "bb", "bn", "br"],
@@ -122,9 +139,9 @@ class Chess:
 
         return []
 
-    # ---------------------------------------------------------
+    # =========================================================
     # PAWN
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_pawn_moves(self, row, col, color):
         moves = []
@@ -160,9 +177,9 @@ class Chess:
 
         return moves
 
-    # ---------------------------------------------------------
+    # =========================================================
     # ROOK
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_rook_moves(self, row, col, color):
         return self.get_sliding_moves(
@@ -177,9 +194,9 @@ class Chess:
             ],
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # BISHOP
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_bishop_moves(self, row, col, color):
         return self.get_sliding_moves(
@@ -194,9 +211,9 @@ class Chess:
             ],
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # QUEEN
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_queen_moves(self, row, col, color):
         return self.get_sliding_moves(
@@ -215,9 +232,9 @@ class Chess:
             ],
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # KNIGHT
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_knight_moves(self, row, col, color):
         moves = []
@@ -247,9 +264,9 @@ class Chess:
 
         return moves
 
-    # ---------------------------------------------------------
+    # =========================================================
     # KING
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_king_moves(self, row, col, color):
         moves = []
@@ -279,9 +296,9 @@ class Chess:
 
         return moves
 
-    # ---------------------------------------------------------
+    # =========================================================
     # SLIDING PIECES
-    # ---------------------------------------------------------
+    # =========================================================
 
     def get_sliding_moves(self, row, col, color, directions):
         moves = []
@@ -295,7 +312,6 @@ class Chess:
 
                 if target is None:
                     moves.append((current_row, current_col))
-
                 else:
                     if target[0] != color:
                         moves.append((current_row, current_col))
@@ -422,9 +438,12 @@ class Chess:
             return False
 
         row, col = king_position
-        opponent = self.opposite_color(color)
 
-        return self.is_square_attacked(row, col, opponent)
+        return self.is_square_attacked(
+            row,
+            col,
+            self.opposite_color(color),
+        )
 
     # =========================================================
     # CASTLING
@@ -542,12 +561,13 @@ class Chess:
             )
 
         # Rook captured
-        if captured_piece is not None and captured_piece[1] == "r":
-            self.disable_rook_castling(
-                captured_piece[0],
-                to_row,
-                to_col,
-            )
+        if captured_piece is not None:
+            if captured_piece[1] == "r":
+                self.disable_rook_castling(
+                    captured_piece[0],
+                    to_row,
+                    to_col,
+                )
 
     # =========================================================
     # EN PASSANT
@@ -644,14 +664,10 @@ class Chess:
                 and captured_piece is None
             )
 
-            en_passant_captured = None
-
             if is_en_passant:
                 captured_row = target_row + (
                     1 if color == "w" else -1
                 )
-
-                en_passant_captured = self.board[captured_row][target_col]
 
                 self.board[captured_row][target_col] = None
 
@@ -884,7 +900,6 @@ class Chess:
 
         # Other pieces
         piece_letter = piece_type.upper()
-
         capture_symbol = "x" if captured else ""
 
         return (

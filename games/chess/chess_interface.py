@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from .chess_driver import Chess
+from .bot import ChessBot
 
 
 BOARD_SIZE = 8
@@ -21,7 +22,13 @@ PANEL_WIDTH = 220
 
 
 class ChessInterface:
-    def __init__(self, root):
+    def __init__(
+        self,
+        root,
+        game_mode="Player vs Bot",
+        difficulty="Medium",
+        bot_color="b",
+    ):
         self.root = root
 
         self.root.title("Chess")
@@ -29,15 +36,25 @@ class ChessInterface:
 
         self.game = Chess()
 
+        self.game_mode = game_mode
+        self.difficulty = difficulty
+        self.bot_color = bot_color
+
+        self.bot = None
+
+        if self.game_mode == "Player vs Bot":
+            self.bot = ChessBot(
+                color=self.bot_color,
+                difficulty=self.difficulty,
+            )
+
         self.selected = None
         self.possible_moves = []
 
         self.buttons = []
-
         self.images = {}
 
         self.load_images()
-
         self.create_interface()
 
         self.render_board()
@@ -50,15 +67,23 @@ class ChessInterface:
     def load_images(self):
         assets_dir = Path(__file__).parent / "assets"
 
+        piece_map = {
+            "Pawn": "p",
+            "Knight": "n",
+            "Bishop": "b",
+            "Rook": "r",
+            "Queen": "q",
+            "King": "k",
+        }
+
         for color in ("White", "Black"):
-            for piece_name in (
-                "Pawn",
-                "Knight",
-                "Bishop",
-                "Rook",
-                "Queen",
-                "King",
-            ):
+            color_code = (
+                "w"
+                if color == "White"
+                else "b"
+            )
+
+            for piece_name, piece_code in piece_map.items():
                 filename = (
                     f"Piece={piece_name}, "
                     f"Side={color}.png"
@@ -67,17 +92,7 @@ class ChessInterface:
                 path = assets_dir / filename
 
                 if path.exists():
-                    key = (
-                        ("w" if color == "White" else "b")
-                        + {
-                            "Pawn": "p",
-                            "Knight": "n",
-                            "Bishop": "b",
-                            "Rook": "r",
-                            "Queen": "q",
-                            "King": "k",
-                        }[piece_name]
-                    )
+                    key = color_code + piece_code
 
                     self.images[key] = tk.PhotoImage(
                         file=str(path)
@@ -97,10 +112,6 @@ class ChessInterface:
             padx=10,
             pady=10,
         )
-
-        # -----------------------------------------------------
-        # Board
-        # -----------------------------------------------------
 
         board_frame = tk.Frame(
             main_frame,
@@ -143,10 +154,6 @@ class ChessInterface:
 
             self.buttons.append(row_buttons)
 
-        # -----------------------------------------------------
-        # Sidebar
-        # -----------------------------------------------------
-
         self.create_side_panel(main_frame)
 
     def create_side_panel(self, parent):
@@ -166,16 +173,24 @@ class ChessInterface:
 
         panel.pack_propagate(False)
 
-        # Title
         tk.Label(
             panel,
             text="CHESS",
             font=("Arial", 18, "bold"),
         ).pack(
-            pady=(0, 10),
+            pady=(0, 5),
         )
 
-        # Turn
+        self.mode_label = tk.Label(
+            panel,
+            text=self.get_mode_text(),
+            font=("Arial", 9),
+        )
+
+        self.mode_label.pack(
+            pady=(0, 5),
+        )
+
         self.turn_label = tk.Label(
             panel,
             text="",
@@ -186,7 +201,6 @@ class ChessInterface:
             pady=(0, 5),
         )
 
-        # Status
         self.status_label = tk.Label(
             panel,
             text="",
@@ -198,7 +212,6 @@ class ChessInterface:
             pady=(0, 10),
         )
 
-        # Captured
         tk.Label(
             panel,
             text="Captured",
@@ -219,7 +232,6 @@ class ChessInterface:
             pady=(0, 10),
         )
 
-        # Move history
         tk.Label(
             panel,
             text="Moves",
@@ -263,17 +275,15 @@ class ChessInterface:
             command=self.history_listbox.yview
         )
 
-        # New Game
         tk.Button(
             panel,
             text="New Game",
-            command=self.new_game,
+            command=self.new_game_dialog,
         ).pack(
             fill="x",
             pady=(0, 5),
         )
 
-        # Close
         tk.Button(
             panel,
             text="Close",
@@ -282,8 +292,14 @@ class ChessInterface:
             fill="x",
         )
 
+    def get_mode_text(self):
+        if self.game_mode == "Player vs Bot":
+            return f"Bot: {self.difficulty}"
+
+        return "Player vs Player"
+
     # =========================================================
-    # BOARD RENDERING
+    # BOARD
     # =========================================================
 
     def get_square_color(self, row, col):
@@ -305,10 +321,6 @@ class ChessInterface:
             col,
         )
 
-        # -----------------------------------------------------
-        # Last move
-        # -----------------------------------------------------
-
         if self.game.last_move is not None:
             move = self.game.last_move
 
@@ -318,19 +330,11 @@ class ChessInterface:
             ):
                 color = LAST_MOVE_COLOR
 
-        # -----------------------------------------------------
-        # King in check
-        # -----------------------------------------------------
-
         piece = self.game.board[row][col]
 
         if piece is not None and piece[1] == "k":
             if self.game.is_in_check(piece[0]):
                 color = CHECK_COLOR
-
-        # -----------------------------------------------------
-        # Possible moves
-        # -----------------------------------------------------
 
         if (row, col) in self.possible_moves:
             if piece is None:
@@ -338,50 +342,39 @@ class ChessInterface:
             else:
                 color = CAPTURE_COLOR
 
-        # -----------------------------------------------------
-        # Selected square
-        # -----------------------------------------------------
-
         if self.selected == (row, col):
             color = SELECTED_COLOR
 
-        # -----------------------------------------------------
-        # Piece image
-        # -----------------------------------------------------
+        # Always clear old image first.
+        button.config(
+            bg=color,
+            activebackground=color,
+            image="",
+        )
+
+        button.image = None
 
         if piece is not None:
             image = self.images.get(piece)
 
             button.config(
-                bg=color,
-                activebackground=color,
                 image=image,
             )
 
             button.image = image
 
-        else:
-            button.config(
-                bg=color,
-                activebackground=color,
-                image="",
-            )
-
-            button.image = None
-
     # =========================================================
-    # CLICK HANDLING
+    # CLICK
     # =========================================================
 
     def square_click(self, row, col):
         if self.game.game_over:
             return
 
-        piece = self.game.board[row][col]
+        if self.is_bot_turn():
+            return
 
-        # -----------------------------------------------------
-        # Nothing selected
-        # -----------------------------------------------------
+        piece = self.game.board[row][col]
 
         if self.selected is None:
             if piece is None:
@@ -390,41 +383,43 @@ class ChessInterface:
             if piece[0] != self.game.turn:
                 return
 
-            self.select_piece(row, col)
+            self.select_piece(
+                row,
+                col,
+            )
 
             return
-
-        # -----------------------------------------------------
-        # Selecting another own piece
-        # -----------------------------------------------------
 
         if piece is not None:
             if piece[0] == self.game.turn:
-                self.select_piece(row, col)
+                self.select_piece(
+                    row,
+                    col,
+                )
 
                 return
 
-        # -----------------------------------------------------
-        # Move
-        # -----------------------------------------------------
-
         if (row, col) in self.possible_moves:
-            self.try_move(row, col)
+            self.try_move(
+                row,
+                col,
+            )
 
             return
-
-        # -----------------------------------------------------
-        # Invalid square
-        # -----------------------------------------------------
 
         self.clear_selection()
 
     def select_piece(self, row, col):
-        self.selected = (row, col)
-
-        self.possible_moves = self.game.get_legal_moves(
+        self.selected = (
             row,
             col,
+        )
+
+        self.possible_moves = (
+            self.game.get_legal_moves(
+                row,
+                col,
+            )
         )
 
         self.render_board()
@@ -436,7 +431,7 @@ class ChessInterface:
         self.render_board()
 
     # =========================================================
-    # MOVE
+    # PLAYER MOVE
     # =========================================================
 
     def try_move(self, row, col):
@@ -445,13 +440,11 @@ class ChessInterface:
 
         from_row, from_col = self.selected
 
-        piece = self.game.board[from_row][from_col]
+        piece = self.game.board[
+            from_row
+        ][from_col]
 
         promotion_piece = None
-
-        # -----------------------------------------------------
-        # Promotion
-        # -----------------------------------------------------
 
         if (
             piece is not None
@@ -464,10 +457,6 @@ class ChessInterface:
 
             if promotion_piece is None:
                 return
-
-        # -----------------------------------------------------
-        # Execute move
-        # -----------------------------------------------------
 
         success = self.game.move_piece(
             from_row,
@@ -483,6 +472,13 @@ class ChessInterface:
         self.selected = None
         self.possible_moves = []
 
+        self.finish_turn()
+
+    # =========================================================
+    # TURN FINISH
+    # =========================================================
+
+    def finish_turn(self):
         self.update_interface()
 
         result = self.game.check_game_state()
@@ -491,6 +487,67 @@ class ChessInterface:
 
         if result is not None:
             self.show_game_over(result)
+            return
+
+        if self.is_bot_turn():
+            self.root.after(
+                250,
+                self.make_bot_move,
+            )
+
+    # =========================================================
+    # BOT
+    # =========================================================
+
+    def is_bot_turn(self):
+        if self.game_mode != "Player vs Bot":
+            return False
+
+        return self.game.turn == self.bot_color
+
+    def make_bot_move(self):
+        if self.game.game_over:
+            return
+
+        if not self.is_bot_turn():
+            return
+
+        self.status_label.config(
+            text="Bot is thinking..."
+        )
+
+        self.root.update_idletasks()
+
+        move = self.bot.make_move(
+            self.game
+        )
+
+        if move is None:
+            return
+
+        (
+            from_row,
+            from_col,
+            to_row,
+            to_col,
+            promotion,
+        ) = move
+
+        success = self.game.move_piece(
+            from_row,
+            from_col,
+            to_row,
+            to_col,
+            promotion_piece=promotion,
+        )
+
+        if not success:
+            return
+
+        self.selected = None
+        self.possible_moves = []
+
+        self.finish_turn()
 
     # =========================================================
     # PROMOTION
@@ -501,7 +558,9 @@ class ChessInterface:
             "piece": None,
         }
 
-        window = tk.Toplevel(self.root)
+        window = tk.Toplevel(
+            self.root
+        )
 
         window.title("Promotion")
         window.resizable(False, False)
@@ -525,6 +584,10 @@ class ChessInterface:
             pady=(0, 15),
         )
 
+        def choose(piece_code):
+            result["piece"] = piece_code
+            window.destroy()
+
         pieces = [
             ("q", "Queen"),
             ("r", "Rook"),
@@ -533,9 +596,13 @@ class ChessInterface:
         ]
 
         for piece_code, name in pieces:
-            full_piece = color + piece_code
+            full_piece = (
+                color + piece_code
+            )
 
-            image = self.images.get(full_piece)
+            image = self.images.get(
+                full_piece
+            )
 
             button = tk.Button(
                 frame,
@@ -554,17 +621,12 @@ class ChessInterface:
                 padx=3,
             )
 
-        def choose(piece_code):
-            result["piece"] = piece_code
-
-            window.destroy()
-
         window.wait_window()
 
         return result["piece"]
 
     # =========================================================
-    # SIDEBAR UPDATE
+    # INTERFACE UPDATE
     # =========================================================
 
     def update_interface(self):
@@ -572,7 +634,6 @@ class ChessInterface:
         self.update_status()
         self.update_captured()
         self.update_history()
-
         self.render_board()
 
     def update_turn(self):
@@ -595,14 +656,23 @@ class ChessInterface:
             self.status_label.config(
                 text="Check!"
             )
+        elif self.is_bot_turn():
+            self.status_label.config(
+                text="Bot is thinking..."
+            )
         else:
             self.status_label.config(
                 text="Your move"
             )
 
     def update_captured(self):
-        white_captured = self.game.captured_pieces["b"]
-        black_captured = self.game.captured_pieces["w"]
+        white_captured = (
+            self.game.captured_pieces["b"]
+        )
+
+        black_captured = (
+            self.game.captured_pieces["w"]
+        )
 
         white_text = "".join(
             self.game.get_piece_symbol(piece)
@@ -631,7 +701,11 @@ class ChessInterface:
 
         moves = self.game.move_history
 
-        for index in range(0, len(moves), 2):
+        for index in range(
+            0,
+            len(moves),
+            2,
+        ):
             white_move = moves[index]
 
             if index + 1 < len(moves):
@@ -642,7 +716,6 @@ class ChessInterface:
                     f"{white_move:<8}"
                     f"{black_move}"
                 )
-
             else:
                 text = (
                     f"{index // 2 + 1}. "
@@ -654,14 +727,18 @@ class ChessInterface:
                 text,
             )
 
-        self.history_listbox.yview_moveto(1.0)
+        self.history_listbox.yview_moveto(
+            1.0
+        )
 
     # =========================================================
     # GAME OVER
     # =========================================================
 
     def show_game_over(self, result):
-        window = tk.Toplevel(self.root)
+        window = tk.Toplevel(
+            self.root
+        )
 
         window.title("Game Over")
         window.resizable(False, False)
@@ -690,7 +767,9 @@ class ChessInterface:
             pady=(25, 20),
         )
 
-        button_frame = tk.Frame(window)
+        button_frame = tk.Frame(
+            window
+        )
 
         button_frame.pack(
             padx=20,
@@ -701,8 +780,9 @@ class ChessInterface:
             button_frame,
             text="New Game",
             width=12,
-            command=lambda: self.restart_from_window(
-                window
+            command=lambda: (
+                window.destroy(),
+                self.new_game_dialog(),
             ),
         ).pack(
             side="left",
@@ -719,36 +799,199 @@ class ChessInterface:
             padx=5,
         )
 
-    def restart_from_window(self, window):
-        window.destroy()
-
-        self.new_game()
-
     # =========================================================
     # NEW GAME
     # =========================================================
 
-    def new_game(self):
-        self.game.reset()
+    def new_game_dialog(self):
+        self.show_setup_window()
 
-        self.selected = None
-        self.possible_moves = []
+    # =========================================================
+    # SETUP
+    # =========================================================
 
-        self.history_listbox.delete(
-            0,
-            tk.END,
+    def show_setup_window(self):
+        window = tk.Toplevel(
+            self.root
         )
 
-        self.update_interface()
+        window.title("New Chess Game")
+        window.resizable(False, False)
 
+        window.transient(self.root)
+        window.grab_set()
 
-# =============================================================
-# ENTRY POINT
-# =============================================================
+        frame = tk.Frame(
+            window,
+            padx=20,
+            pady=20,
+        )
+
+        frame.pack()
+
+        tk.Label(
+            frame,
+            text="New Chess Game",
+            font=("Arial", 15, "bold"),
+        ).pack(
+            pady=(0, 15),
+        )
+
+        # -----------------------------------------------------
+        # Game mode
+        # -----------------------------------------------------
+
+        tk.Label(
+            frame,
+            text="Game mode:",
+            font=("Arial", 10, "bold"),
+        ).pack(
+            anchor="w",
+        )
+
+        mode_var = tk.StringVar(
+            value=self.game_mode
+        )
+
+        tk.Radiobutton(
+            frame,
+            text="Player vs Bot",
+            variable=mode_var,
+            value="Player vs Bot",
+        ).pack(
+            anchor="w",
+        )
+
+        tk.Radiobutton(
+            frame,
+            text="Player vs Player",
+            variable=mode_var,
+            value="Player vs Player",
+        ).pack(
+            anchor="w",
+        )
+
+        # -----------------------------------------------------
+        # Difficulty
+        # -----------------------------------------------------
+
+        tk.Label(
+            frame,
+            text="Difficulty:",
+            font=("Arial", 10, "bold"),
+        ).pack(
+            anchor="w",
+            pady=(15, 3),
+        )
+
+        difficulty_var = tk.StringVar(
+            value=self.difficulty
+        )
+
+        difficulty_box = ttk.Combobox(
+            frame,
+            textvariable=difficulty_var,
+            values=[
+                "Easy",
+                "Medium",
+                "Hard",
+                "Expert",
+            ],
+            state="readonly",
+            width=18,
+        )
+
+        difficulty_box.pack(
+            anchor="w",
+        )
+
+        # -----------------------------------------------------
+        # Buttons
+        # -----------------------------------------------------
+
+        button_frame = tk.Frame(
+            frame
+        )
+
+        button_frame.pack(
+            pady=(20, 0),
+        )
+
+        def start_game():
+            self.game_mode = mode_var.get()
+            self.difficulty = (
+                difficulty_var.get()
+            )
+
+            if self.game_mode == "Player vs Bot":
+                self.bot = ChessBot(
+                    color=self.bot_color,
+                    difficulty=self.difficulty,
+                )
+            else:
+                self.bot = None
+
+            self.game.reset()
+
+            self.selected = None
+            self.possible_moves = []
+
+            window.destroy()
+
+            self.mode_label.config(
+                text=self.get_mode_text()
+            )
+
+            self.update_interface()
+
+            if self.is_bot_turn():
+                self.root.after(
+                    250,
+                    self.make_bot_move,
+                )
+
+        tk.Button(
+            button_frame,
+            text="Start",
+            width=12,
+            command=start_game,
+        ).pack(
+            side="left",
+            padx=5,
+        )
+
+        tk.Button(
+            button_frame,
+            text="Cancel",
+            width=12,
+            command=window.destroy,
+        ).pack(
+            side="left",
+            padx=5,
+        )
+
+    # =========================================================
+    # STARTUP
+    # =========================================================
+
+    def show_initial_setup(self):
+        self.show_setup_window()
+
 
 def main():
     root = tk.Toplevel()
 
-    ChessInterface(root)
+    root.withdraw()
+
+    interface = ChessInterface(
+        root,
+        game_mode="Player vs Bot",
+        difficulty="Medium",
+        bot_color="b",
+    )
+
+    root.deiconify()
+
+    interface.show_initial_setup()
 
     root.mainloop()
