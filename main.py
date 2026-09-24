@@ -13,6 +13,7 @@ from interface.quick_commands_window import open_quick_commands
 
 from games.minesweeper.main import main as mineswipper_main
 from games.tic_tac_toe.main import main as tic_tac_toe_main
+from games.chess.chess_interface import main as chess
 
 import tkinter as tk
 
@@ -32,6 +33,7 @@ BUTTONS = [
     ("activation", "Activate new task", open_activation, (root, Path(BASE_SETTINGS["DIRS"]["working_dir"]), BASE_SETTINGS)),
     ("notes", "Quick Notes", open_notes, (root, notes_manager)),
     ("quick_commands", "Quick Commands", open_quick_commands, (root, BASE_DIR, BASE_SETTINGS)),
+    ("chess", "Chess", chess, ()),
     ("mineswipper", "Mineswipper", mineswipper_main, ()),
     ("tic_tac_toe", "Tic-Tak-Toe", tic_tac_toe_main, ()),
     ("settings", "Settings", open_settings, (root, BASE_DIR, BASE_SETTINGS,)),
