@@ -1,77 +1,85 @@
 from pathlib import Path
+from initializer import initialize
 
 from scripts.note_manager import NotesManager
-from scripts.activation_new_task import activate_new_task
-from scripts.program_launcher import launch_selected_programs
-from scripts.settings_manager import read_settings, write_settings
+from scripts.quick_commands_manager import QuickCommandsManager
+from scripts.settings_manager import read_settings
 
-from interface.tray import setup_tray
-from interface.quick_notes_window import open_notes
-from interface.open_settings_window import open_settings
-from interface.open_activation_window import open_activation
-from interface.quick_commands_window import open_quick_commands
+from interface.app import ToolkitApp
+from interface.context import ToolkitContext
 
-from games.minesweeper.main import main as mineswipper_main
-from games.tic_tac_toe.main import main as tic_tac_toe_main
-from games.chess.chess_interface import main as chess
+from interface.views.dashboard import DashboardView
+from interface.views.launcher import LauncherView
+from interface.views.activation import ActivationView
+from interface.views.notes import NotesView
+from interface.views.quick_commands import QuickCommandsView
 
-import tkinter as tk
 
+initialize()
 
 BASE_DIR = Path('./')
 
-BASE_SETTINGS = read_settings(directory=BASE_DIR)
+settings = read_settings((BASE_DIR / "db"))
 
-root = tk.Tk()
-root.title("Toolkit")
-
-notes_manager = NotesManager(path=BASE_DIR / "db" / "notes.json")
+notes_manager = NotesManager(
+    path=BASE_DIR / "db" / "notes.json"
+)
 notes_manager.read_notes()
 
-BUTTONS = [
-    ("launcher", "Launch work setup", launch_selected_programs, (BASE_SETTINGS,)),
-    ("activation", "Activate new task", open_activation, (root, Path(BASE_SETTINGS["DIRS"]["working_dir"]), BASE_SETTINGS)),
-    ("notes", "Quick Notes", open_notes, (root, notes_manager)),
-    ("quick_commands", "Quick Commands", open_quick_commands, (root, BASE_DIR, BASE_SETTINGS)),
-    ("chess", "Chess", chess, ()),
-    ("mineswipper", "Mineswipper", mineswipper_main, ()),
-    ("tic_tac_toe", "Tic-Tak-Toe", tic_tac_toe_main, ()),
-    ("settings", "Settings", open_settings, (root, BASE_DIR, BASE_SETTINGS,)),
-    ("exit", "Exit", root.destroy, ()),
-]
-
-setup_tray(root)
-
-label = tk.Label(root, text="Greetings!")
-label.pack(pady=10)
-
-warning_label = tk.Label(
-    root, 
-    text="⚠ WARNING: check working dir in `Settings`", 
-    fg="red", font=("Arial", 8)
+quick_commands_manager = QuickCommandsManager(
+    path=BASE_DIR / "db" / "quick_commands.ini"
 )
-warning_label.pack(pady=(0, 5))
 
-# Adding buttons
-for icon_name, text, command, args in BUTTONS:
+context = ToolkitContext(
+    base_dir=BASE_DIR,
+    settings=settings,
+    notes_manager=notes_manager,
+    quick_commands_manager=quick_commands_manager,
+)
 
-    tk.Button(
-        root,
-        text=text,
-        # image=icons[icon_name],
-        compound="left",
-        command=lambda command=command, args=args: command(*args)
-    ).pack(
-        fill="x",
-        padx=10,
-        pady=5
-    )
+app = ToolkitApp(context)
 
-root.update_idletasks()
 
-width = root.winfo_reqwidth()
-height = root.winfo_reqheight()
+app.register(
+    id="dashboard",
+    title="Dashboard",
+    icon="⌂",
+    group="MAIN",
+    view=DashboardView,
+)
 
-root.geometry(f"{width + 20}x{height + 20}")
-root.mainloop()
+app.register(
+    id="launcher",
+    title="Launcher",
+    icon="🚀",
+    group="WORK",
+    view=LauncherView,
+)
 
+app.register(
+    id="activation",
+    title="New Task",
+    icon="⚡",
+    group="WORK",
+    view=ActivationView,
+)
+
+app.register(
+    id="notes",
+    title="Quick Notes",
+    icon="📝",
+    group="TOOLS",
+    view=NotesView,
+)
+
+app.register(
+    id="commands",
+    title="Quick Commands",
+    icon="⌨",
+    group="TOOLS",
+    view=QuickCommandsView,
+)
+
+app.show("dashboard")
+
+app.mainloop()

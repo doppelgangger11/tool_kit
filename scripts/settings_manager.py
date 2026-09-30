@@ -6,7 +6,8 @@ from configparser import ConfigParser
 def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
     if not (directory / "settings.ini").is_file():
         print("Error: File not found")
-        print("Used default settings!")
+        print("Creating default settings...")
+        
         write_settings(
             directory,
             settings = {
