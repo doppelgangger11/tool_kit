@@ -30,7 +30,7 @@ notes_manager.read_notes()
 
 BUTTONS = [
     ("launcher", "Launch work setup", launch_selected_programs, (BASE_SETTINGS,)),
-    ("activation", "Activate new task", open_activation, (root, Path(BASE_SETTINGS["DIRS"]["working_dir"]), BASE_SETTINGS)),
+    ("activation", "Activate new task", open_activation, (root, BASE_DIR, BASE_SETTINGS)),
     ("notes", "Quick Notes", open_notes, (root, notes_manager)),
     ("quick_commands", "Quick Commands", open_quick_commands, (root, BASE_DIR, BASE_SETTINGS)),
     ("chess", "Chess", chess, ()),
