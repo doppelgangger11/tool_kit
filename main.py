@@ -3,7 +3,7 @@ from pathlib import Path
 from scripts.note_manager import NotesManager
 from scripts.activation_new_task import activate_new_task
 from scripts.program_launcher import launch_selected_programs
-from scripts.settings_manager import read_settings, write_settings
+from scripts.settings_manager import read_settings, write_settings, ensure_structure
 
 from interface.tray import setup_tray
 from interface.quick_notes_window import open_notes
@@ -17,10 +17,10 @@ from games.chess.chess_interface import main as chess
 
 import tkinter as tk
 
-
-BASE_DIR = Path('./')
+BASE_DIR = Path(__file__).resolve().parent      # вместо Path('./')
 
 BASE_SETTINGS = read_settings(directory=BASE_DIR)
+problems = ensure_structure(BASE_DIR, BASE_SETTINGS)
 
 root = tk.Tk()
 root.title("Toolkit")
@@ -45,12 +45,12 @@ setup_tray(root)
 label = tk.Label(root, text="Greetings!")
 label.pack(pady=10)
 
-warning_label = tk.Label(
-    root, 
-    text="⚠ WARNING: check working dir in `Settings`", 
-    fg="red", font=("Arial", 8)
-)
-warning_label.pack(pady=(0, 5))
+if problems:
+    tk.Label(
+        root,
+        text="⚠ " + "\n".join(problems),
+        fg="red", font=("Arial", 8), justify="left",
+    ).pack(pady=(0, 5))
 
 # Adding buttons
 for icon_name, text, command, args in BUTTONS:
