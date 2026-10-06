@@ -269,6 +269,44 @@ def open_activation(root, base_dir, settings):
         if name in templates:
             template_var.set(name)
             update_template_info()
+            
+    def edit_template():
+        tpl = current_template()
+        if tpl is None:
+            return
+
+        editor = open_template_editor(
+            window, configs_dir, files_dir,
+            on_saved=on_template_saved,
+            existing=tpl,
+        )
+        window.wait_window(editor)
+        if window.winfo_exists():
+            window.grab_set()
+
+    def delete_template():
+        tpl = current_template()
+        if tpl is None:
+            return
+
+        path = configs_dir / tpl["file"]
+
+        if not messagebox.askyesno(
+            "Delete template",
+            f"Delete template '{template_var.get()}'?\n\n{path}\n\n"
+            "Files in temp/templates will NOT be deleted.",
+            icon="warning",
+            parent=window,
+        ):
+            return
+
+        try:
+            path.unlink()
+        except OSError as error:
+            messagebox.showerror("Delete template", str(error), parent=window)
+            return
+
+        reload_templates()
 
     def open_editor():
         editor = open_template_editor(
@@ -330,8 +368,14 @@ def open_activation(root, base_dir, settings):
     buttons.grid(row=7, column=0, columnspan=2, sticky="e", pady=(12, 0))
 
     ttk.Button(buttons, text="New template…", command=open_editor).pack(
-        side="left", padx=(0, 24)
+        side="left", padx=(0, 8)
     )
+
+    edit_btn = ttk.Button(buttons, text="Edit…", command=edit_template)
+    edit_btn.pack(side="left", padx=(0, 8))
+
+    delete_btn = ttk.Button(buttons, text="Delete", command=delete_template)
+    delete_btn.pack(side="left", padx=(0, 24))
 
     activate_btn = ttk.Button(buttons, text="Activate", command=on_activate)
     activate_btn.pack(side="left", padx=(0, 8))

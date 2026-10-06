@@ -47,11 +47,19 @@ def _slug(name: str) -> str:
     return slug or "template"
 
 
+def _safe_try_grab(win):
+    try:
+        win.wait_visibility()
+        win.grab_set()
+    except tk.TclError:
+        pass
+
+
 # ---------------------------------------------------------
 # Dialog: add file to template
 # ---------------------------------------------------------
 
-def _open_file_dialog(parent, templates_dir: Path, dirs: list, on_ok):
+def _open_file_dialog(parent, files_dir: Path, dirs: list, on_ok):
     dlg = tk.Toplevel(parent)
     dlg.title("Add template file")
     dlg.resizable(False, False)
@@ -59,18 +67,19 @@ def _open_file_dialog(parent, templates_dir: Path, dirs: list, on_ok):
 
     frame = ttk.Frame(dlg, padding=12)
     frame.pack(fill="both", expand=True)
-    ttk.Label(frame, text=f"File from {templates_dir}:").grid(row=0, column=0, sticky="w")
 
     def available_files():
-        if not templates_dir.is_dir():
+        if not files_dir.is_dir():
             return []
         return sorted(
-            p.name for p in templates_dir.iterdir()
+            p.name for p in files_dir.iterdir()
             if p.is_file() and p.suffix.lower() != ".json"
         )
 
     # file
-    ttk.Label(frame, text="File from tool_kit/db/tasks_templates:").grid(row=0, column=0, sticky="w")
+    ttk.Label(frame, text=f"File from {files_dir}:").grid(
+        row=0, column=0, columnspan=2, sticky="w"
+    )
 
     file_var = tk.StringVar()
     file_combo = ttk.Combobox(
@@ -85,18 +94,24 @@ def _open_file_dialog(parent, templates_dir: Path, dirs: list, on_ok):
             return
 
         src = Path(path)
-        dst = templates_dir / src.name
+        dst = files_dir / src.name
 
         try:
-            if dst.exists() and dst.resolve() != src.resolve():
+            files_dir.mkdir(parents=True, exist_ok=True)
+
+            same = dst.exists() and dst.resolve() == src.resolve()
+
+            if dst.exists() and not same:
                 if not messagebox.askyesno(
-                    "Add file", f"{src.name} already exists in templates.\nOverwrite?",
+                    "Add file",
+                    f"{src.name} already exists in templates.\nOverwrite?",
                     parent=dlg,
                 ):
                     return
-            if not dst.exists() or dst.resolve() != src.resolve():
-                templates_dir.mkdir(parents=True, exist_ok=True)
+
+            if not same:
                 shutil.copy2(src, dst)
+
         except OSError as error:
             messagebox.showerror("Add file", str(error), parent=dlg)
             return
@@ -157,7 +172,9 @@ def _open_file_dialog(parent, templates_dir: Path, dirs: list, on_ok):
 
         chosen = [dirs[i] for i in targets.curselection()]
         if not chosen:
-            messagebox.showwarning("Add file", "Select at least one directory.", parent=dlg)
+            messagebox.showwarning(
+                "Add file", "Select at least one directory.", parent=dlg
+            )
             return
 
         on_ok({
@@ -174,33 +191,50 @@ def _open_file_dialog(parent, templates_dir: Path, dirs: list, on_ok):
     ttk.Button(buttons, text="Cancel", command=dlg.destroy).pack(side="left")
 
     dlg.bind("<Escape>", lambda e: dlg.destroy())
-    try:
-        dlg.wait_visibility()   # в редакторе: window.wait_visibility()
-        dlg.grab_set()          # в редакторе: window.grab_set()
-    except tk.TclError:
-        pass
+    _safe_try_grab(dlg)
 
 
 # ---------------------------------------------------------
-# Main editor
+# Main editor (create / edit)
 # ---------------------------------------------------------
 
-def open_template_editor(root, configs_dir, files_dir, on_saved=None):
+def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=None):
     """
     configs_dir - куда сохраняется <name>.json (tool_kit/db/tasks_templates)
     files_dir   - откуда берутся файлы-заготовки (temp/templates)
+    on_saved    - on_saved(template_name) после успешного сохранения
+    existing    - {"file": "x.json", "data": {...}} -> режим редактирования,
+                  None -> создание нового шаблона
+    Возвращает окно (чтобы вызывающий мог сделать wait_window).
     """
     configs_dir = Path(configs_dir)
     files_dir = Path(files_dir)
 
+    is_edit = existing is not None
+    data0 = (existing or {}).get("data", {}) or {}
+
+    # ---- начальное состояние ----
+    dirs: list[str] = [str(d) for d in data0.get("dirs", [])] or [_dir_value("")]
+
+    cfg0 = data0.get("copy_from_temp", {}) or {}
+    copy_dirs: set[str] = {str(d) for d in cfg0.get("dirs", []) if str(d) in dirs}
+    initial_is_copy = bool(cfg0.get("is_copy", False))
+
+    files: list[dict] = []
+    for f in data0.get("files", []):
+        if isinstance(f, dict) and f.get("template"):
+            files.append({
+                "template": str(f["template"]),
+                "is_rename": bool(f.get("is_rename", False)),
+                "new_name": str(f.get("new_name", "") or ""),
+                "dirs": [str(d) for d in f.get("dirs", [])],
+            })
+
+    # ---- window ----
     window = tk.Toplevel(root)
-    window.title("New template")
+    window.title("Edit template" if is_edit else "New template")
     window.resizable(False, False)
     window.transient(root)
-
-    dirs: list[str] = [_dir_value("")]
-    copy_dirs: set[str] = set()
-    files: list[dict] = []
 
     frame = ttk.Frame(window, padding=15)
     frame.pack(fill="both", expand=True)
@@ -208,7 +242,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
 
     # ---- name ----
     ttk.Label(frame, text="Template name:").grid(row=0, column=0, sticky="w")
-    name_var = tk.StringVar()
+    name_var = tk.StringVar(value=str(data0.get("name", "")))
     name_entry = ttk.Entry(frame, textvariable=name_var, width=60)
     name_entry.grid(row=1, column=0, sticky="ew", pady=(4, 12))
 
@@ -229,11 +263,10 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
     copy_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
     copy_frame.columnconfigure(0, weight=1)
 
-    copy_var = tk.BooleanVar(value=False)
+    copy_var = tk.BooleanVar(value=initial_is_copy)
 
     copy_list = tk.Listbox(
-        copy_frame, selectmode="multiple", height=4,
-        exportselection=False, state="disabled",
+        copy_frame, selectmode="multiple", height=4, exportselection=False,
     )
 
     def toggle_copy():
@@ -299,12 +332,14 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
     def add_dir(event=None):
         sub, error = _clean_sub(sub_var.get())
         if error:
-            messagebox.showwarning("New template", error, parent=window)
+            messagebox.showwarning("Template", error, parent=window)
             return
 
         value = _dir_value(sub)
         if value in dirs:
-            messagebox.showinfo("New template", "This directory is already in the list.", parent=window)
+            messagebox.showinfo(
+                "Template", "This directory is already in the list.", parent=window
+            )
             return
 
         dirs.append(value)
@@ -345,11 +380,13 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
         try:
             files_dir.mkdir(parents=True, exist_ok=True)
         except OSError as error:
-            messagebox.showerror("New template", str(error), parent=window)
+            messagebox.showerror("Template", str(error), parent=window)
             return
 
         if not dirs:
-            messagebox.showwarning("New template", "Add at least one directory first.", parent=window)
+            messagebox.showwarning(
+                "Template", "Add at least one directory first.", parent=window
+            )
             return
 
         def on_ok(entry):
@@ -362,8 +399,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
         selection = tree.selection()
         if not selection:
             return
-        index = tree.index(selection[0])
-        files.pop(index)
+        files.pop(tree.index(selection[0]))
         refresh_files()
 
     ttk.Button(files_frame, text="Add file…", command=add_file).grid(
@@ -378,12 +414,14 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
         name = name_var.get().strip()
 
         if not name:
-            messagebox.showwarning("New template", "Enter template name.", parent=window)
+            messagebox.showwarning("Template", "Enter template name.", parent=window)
             name_entry.focus_set()
             return
 
         if not dirs:
-            messagebox.showwarning("New template", "Add at least one directory.", parent=window)
+            messagebox.showwarning(
+                "Template", "Add at least one directory.", parent=window
+            )
             return
 
         is_copy = copy_var.get()
@@ -391,37 +429,43 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
 
         if is_copy and not selected_copy:
             messagebox.showwarning(
-                "New template",
+                "Template",
                 "Select at least one directory to copy temp files to.",
                 parent=window,
             )
             return
 
-        data = {
+        # сохраняем и неизвестные ключи, если они были в исходном json
+        data = dict(data0)
+        data.update({
             "name": name,
             "dirs": list(dirs),
             "copy_from_temp": {"is_copy": is_copy, "dirs": selected_copy},
             "files": files,
-        }
+        })
 
-        path = configs_dir / f"{_slug(name)}.json"
+        if is_edit:
+            # редактирование: пишем в тот же файл
+            path = configs_dir / existing["file"]
+        else:
+            path = configs_dir / f"{_slug(name)}.json"
 
-        if path.exists() and not messagebox.askyesno(
-            "New template",
-            f"{path.name} already exists.\nOverwrite?",
-            parent=window,
-        ):
-            return
+            if path.exists() and not messagebox.askyesno(
+                "Template",
+                f"{path.name} already exists.\nOverwrite?",
+                parent=window,
+            ):
+                return
 
         try:
             configs_dir.mkdir(parents=True, exist_ok=True)
             with path.open("w", encoding="utf-8") as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
         except OSError as error:
-            messagebox.showerror("New template", str(error), parent=window)
+            messagebox.showerror("Template", str(error), parent=window)
             return
 
-        messagebox.showinfo("New template", f"Template saved:\n{path}", parent=window)
+        messagebox.showinfo("Template", f"Template saved:\n{path}", parent=window)
 
         window.destroy()
 
@@ -449,12 +493,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None):
     y = (window.winfo_screenheight() - h) // 2
     window.geometry(f"+{x}+{y}")
 
-    try:
-        window.wait_visibility()   # в редакторе: window.wait_visibility()
-        window.grab_set()          # в редакторе: window.grab_set()
-    except tk.TclError:
-        pass
-
+    _safe_try_grab(window)
     name_entry.focus_set()
 
     return window
