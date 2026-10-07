@@ -4,19 +4,14 @@ import tkinter as tk
 from pathlib import Path
 
 from scripts.daemon import Dispatcher, SingleInstance
+from scripts.hotkey import GlobalHotkey
 from scripts.note_manager import NotesManager
-from scripts.program_launcher import launch_selected_programs
+from scripts.registry import AppContext
 from scripts.settings_manager import read_settings, ensure_structure
 
 from interface.tray import Tray
-from interface.quick_notes_window import open_notes
-from interface.open_settings_window import open_settings
-from interface.open_activation_window import open_activation
-from interface.quick_commands_window import open_quick_commands
-
-from games.minesweeper.main import main as mineswipper_main
-from games.tic_tac_toe.main import main as tic_tac_toe_main
-from games.chess.chess_interface import main as chess
+from interface.launcher_window import Launcher
+from modules import build_modules
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -55,28 +50,42 @@ dispatcher = Dispatcher(root)
 notes_manager = NotesManager(path=BASE_DIR / "db" / "notes.json")
 notes_manager.read_notes()
 
-BUTTONS = [
-    ("launcher", "Launch work setup", launch_selected_programs, (BASE_SETTINGS,)),
-    ("activation", "Activate new task", open_activation, (root, BASE_DIR, BASE_SETTINGS)),
-    ("notes", "Quick Notes", open_notes, (root, notes_manager)),
-    ("quick_commands", "Quick Commands", open_quick_commands, (root, BASE_DIR, BASE_SETTINGS)),
-    ("chess", "Chess", chess, ()),
-    ("mineswipper", "Mineswipper", mineswipper_main, ()),
-    ("tic_tac_toe", "Tic-Tak-Toe", tic_tac_toe_main, ()),
-    ("settings", "Settings", open_settings, (root, BASE_DIR, BASE_SETTINGS,)),
-    ("exit", "Exit", root.destroy, ()),
-]
+ctx = AppContext(
+    root=root,
+    base_dir=BASE_DIR,
+    settings=BASE_SETTINGS,
+    notes_manager=notes_manager,
+    dispatcher=dispatcher,
+)
+ctx.launcher = Launcher(ctx)
 
-# что показывать в меню трея (по ключам из BUTTONS)
-TRAY_KEYS = ("launcher", "activation", "notes", "quick_commands")
+# Главное окно, меню трея и лаунчер строятся из одного списка модулей (modules.py)
+MODULES = build_modules()
 
 tray_actions = [
-    (text, lambda command=command, args=args: command(*args))
-    for key, text, command, args in BUTTONS
-    if key in TRAY_KEYS
+    (module.title, lambda module=module: module.run(ctx))
+    for module in MODULES
+    if module.tray
 ]
 
 tray = Tray(root, dispatcher, actions=tray_actions)
+ctx.tray = tray
+
+# ---------------------------------------------------------
+# Глобальная горячая клавиша лаунчера
+# ---------------------------------------------------------
+
+hotkey = GlobalHotkey()
+hotkey_spec = BASE_SETTINGS.get("BASE", {}).get("hotkey", "ctrl+space")
+
+# в ini можно написать hotkey = off (читается как False), чтобы отключить
+if hotkey_spec and str(hotkey_spec).lower() not in ("off", "none", "false"):
+    if not hotkey.start(str(hotkey_spec), lambda: dispatcher.call(ctx.launcher.toggle)):
+        problems.append(f"Hotkey: {hotkey.error}")
+
+# ---------------------------------------------------------
+# UI
+# ---------------------------------------------------------
 
 label = tk.Label(root, text="Greetings!")
 label.pack(pady=10)
@@ -88,17 +97,15 @@ if problems:
         fg="red", font=("Arial", 8), justify="left",
     ).pack(pady=(0, 5))
 
-for icon_name, text, command, args in BUTTONS:
-
+for module in MODULES:
     tk.Button(
         root,
-        text=text,
-        compound="left",
-        command=lambda command=command, args=args: command(*args)
+        text=module.title,
+        command=lambda module=module: module.run(ctx),
     ).pack(
         fill="x",
         padx=10,
-        pady=5
+        pady=5,
     )
 
 root.update_idletasks()
@@ -124,5 +131,6 @@ print("[Toolkit] Running. Control it from the tray icon, Ctrl+C here to exit.")
 try:
     root.mainloop()
 finally:
+    hotkey.stop()
     tray.stop()
     instance.close()

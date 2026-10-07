@@ -17,6 +17,7 @@ TEMPLATES_DIR_NAME = "templates"
 DEFAULTS: dict[str, dict[str, Any]] = {
     "BASE": {
         "log": False,
+        "hotkey": "ctrl+space",   # лаунчер; "off" - отключить
     },
     "DIRS": {
         "working_dir": "./workspace",   # относительно папки с main.py
