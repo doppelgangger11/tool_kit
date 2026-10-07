@@ -117,7 +117,11 @@ def open_activation(root, base_dir, settings):
     window = tk.Toplevel(root)
     window.title("Activate Project")
     window.resizable(False, False)
-    window.transient(root)
+    if root.state() == "normal":
+        window.transient(root)
+        window.lift()
+        window.attributes("-topmost", True)
+        window.after(200, lambda: window.attributes("-topmost", False))
 
     frame = ttk.Frame(window, padding=15)
     frame.pack(fill="both", expand=True)
