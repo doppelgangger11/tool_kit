@@ -3,6 +3,7 @@ from pathlib import Path
 
 from scripts.settings_manager import write_settings
 from scripts.program_launcher import get_programs
+from scripts import autostart
 
 
 def open_settings(root, BASE_DIR, BASE_SETTINGS):
@@ -102,6 +103,21 @@ def open_settings(root, BASE_DIR, BASE_SETTINGS):
         fill="x",
         padx=5
     )
+    
+    # =========================================================
+    # Checkbox autostart with system
+    # =========================================================
+    
+    var = tk.BooleanVar(value=autostart.is_enabled())
+
+    def toggle():
+        if var.get():
+            autostart.enable(BASE_DIR)
+        else:
+            autostart.disable()
+
+    tk.Checkbutton(window, text="Auto startup with Windows",
+                variable=var, command=toggle).pack(anchor="w")
 
     # =========================================================
     # Architecture
