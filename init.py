@@ -49,6 +49,7 @@ REQUIRED_PACKAGES = {
     "tqdm": "tqdm",
     "configparser": "configparser",
     "pystray": "pystray",
+    "pillow": "pillow",
 }
 
 
