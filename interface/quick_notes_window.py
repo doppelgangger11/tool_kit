@@ -195,9 +195,9 @@ class NoteEditor(tk.Toplevel):
     # ==========================================================
 
     def _setup_shortcuts(self):
-        # Ctrl + клавиши.
-        # Используем keycode, чтобы работало независимо
-        # от русской / английской раскладки.
+        # Ctrl + keys.
+        # Use keycode so shortcuts work independently
+        # of the Russian / English keyboard layout.
         for widget in (self.theme_entry, self.text):
             widget.bind("<Control-KeyPress>", self._handle_shortcut)
 
@@ -280,13 +280,13 @@ class NoteEditor(tk.Toplevel):
 
     def _indent(self):
         """
-        Увеличивает отступ на 4 пробела.
+        Increases indentation by 4 spaces.
 
-        Без выделения:
-            вставляет 4 пробела в текущую позицию.
+        Without selection:
+            inserts 4 spaces at the current position.
 
-        С выделением:
-            добавляет 4 пробела в начало каждой выбранной строки.
+        With selection:
+            adds 4 spaces to the beginning of each selected line.
         """
         text = self.text
         indent = " " * self.INDENT_SIZE
@@ -295,15 +295,15 @@ class NoteEditor(tk.Toplevel):
             start = text.index("sel.first")
             end = text.index("sel.last")
         except tk.TclError:
-            # Нет выделения
+            # No selection
             text.insert("insert", indent)
             return "break"
 
         start_line = int(start.split(".")[0])
         end_line = int(end.split(".")[0])
 
-        # Если выделение заканчивается ровно в начале строки,
-        # последнюю строку не трогаем.
+        # If the selection ends exactly at the beginning of a line,
+        # do not modify the last line.
         end_column = int(end.split(".")[1])
 
         if end_column == 0 and end_line > start_line:
@@ -317,13 +317,13 @@ class NoteEditor(tk.Toplevel):
 
     def _unindent(self):
         """
-        Уменьшает отступ на 4 пробела.
+        Decreases indentation by 4 spaces.
 
-        Без выделения:
-            удаляет до 4 пробелов в начале текущей строки.
+        Without selection:
+            removes up to 4 spaces from the beginning of the current line.
 
-        С выделением:
-            убирает до 4 пробелов из начала каждой выбранной строки.
+        With selection:
+            removes up to 4 spaces from the beginning of each selected line.
         """
         text = self.text
 
@@ -331,7 +331,7 @@ class NoteEditor(tk.Toplevel):
             start = text.index("sel.first")
             end = text.index("sel.last")
         except tk.TclError:
-            # Нет выделения
+            # No selection
             line = int(text.index("insert").split(".")[0])
             self._remove_line_indent(line)
             return "break"
@@ -352,7 +352,7 @@ class NoteEditor(tk.Toplevel):
 
     def _remove_line_indent(self, line):
         """
-        Удаляет до INDENT_SIZE пробелов из начала строки.
+        Removes up to INDENT_SIZE spaces from the beginning of the line.
         """
         text = self.text
 
@@ -364,7 +364,7 @@ class NoteEditor(tk.Toplevel):
         if not content:
             return
 
-        # Удаляем максимум 4 пробела.
+        # Remove a maximum of 4 spaces.
         spaces = 0
 
         for char in content:

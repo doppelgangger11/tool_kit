@@ -1,6 +1,6 @@
 """
-Глобальная горячая клавиша на Windows через RegisterHotKey (без сторонних пакетов).
-На других системах start() просто возвращает False.
+Global hotkey on Windows via RegisterHotKey (without third-party packages).
+On other systems, start() simply returns False.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _KEYS.update({f"f{i}": 0x6F + i for i in range(1, 13)})
 
 
 def parse_hotkey(spec: str) -> tuple[int, int]:
-    """'ctrl+alt+space' -> (modifiers, virtual_key). ValueError при ошибке."""
+    """'ctrl+alt+space' -> (modifiers, virtual_key). ValueError on error."""
     parts = [p.strip().lower() for p in str(spec).split("+") if p.strip()]
     if not parts:
         raise ValueError("empty hotkey")
@@ -57,7 +57,7 @@ class GlobalHotkey:
         self._thread_id: int | None = None
 
     def start(self, spec: str, callback) -> bool:
-        """callback вызывается из ДРУГОГО потока - передавай через dispatcher.call."""
+        """callback is called from ANOTHER thread - pass it through dispatcher.call."""
         if os.name != "nt":
             self.error = "global hotkeys are supported on Windows only"
             return False

@@ -5,18 +5,18 @@ import random
 class Minesweeper:
     def __init__(self, root):
         self.root = root
-        self.root.title("Сапер")
+        self.root.title("Minesweeper")
         
         self.rows = 20
         self.cols = 20
         self.mines_count = 70 # 70
         
         self.buttons = []
-        self.mines = set()       # Координаты мин (row, col)
-        self.revealed = set()    # Открытые клетки (row, col)
-        self.flags = set()       # Клетки с флажками (row, col)
+        self.mines = set()       # Mines coordinates (row, col)
+        self.revealed = set()    # Openned cells (row, col)
+        self.flags = set()       # Cells with flags (row, col)
         
-        self.first_click = True  # Флаг для безопасного первого клика
+        self.first_click = True  # Save first click
         self.game_over = False
         self.color_of_bombs = 'red'
 
@@ -39,8 +39,8 @@ class Minesweeper:
             self.buttons.append(row_buttons)
 
     def generate_mines(self, start_row, start_col):
-        # Мины генерируются только после первого клика
-        # Исключаем из генерации саму стартовую клетку и её соседей
+        # Manes genering only after first click
+        # Exclude from genering the start cell and neighbours
         forbidden_cells = set()
         for dr in [-1, 0, 1]:
             for dc in [-1, 0, 1]:
@@ -56,29 +56,29 @@ class Minesweeper:
         if self.game_over or (row, col) in self.flags or (row, col) in self.revealed:
             return
 
-        # Если это первый клик — генерируем мины вокруг этой точки
+        # If it's first click, generate mines around this cell
         if self.first_click:
             self.first_click = False
             self.generate_mines(row, col)
 
-        # Наступили на мину — проигрыш
+        # Failing checkup
         if (row, col) in self.mines:
             self.show_mines()
             self.game_over = True
-            messagebox.showerror("Бум!", "Вы подорвались на мине!")
-            self.restart_window()  # Полное пересоздание окна
+            messagebox.showerror("BOOM", "All mines are explode!")
+            self.restart_window()  # Restart the game, destroy the window 
             return
 
-        # Открываем клетку
+        # Open cell
         self.reveal_cell(row, col)
 
-        # Проверка на победу
+        # Is Win checkup
         if len(self.revealed) == (self.rows * self.cols) - self.mines_count:
             self.color_of_bombs = 'green'
             self.show_mines()
             self.game_over = True
-            messagebox.showinfo("Победа!", "Поздравляем! Вы очистили поле!")
-            self.restart_window()  # Полное пересоздание окна
+            messagebox.showinfo("WIN!", "Congratulations! You are clean the feald!")
+            self.restart_window()  # Restart the game, destroy the window
 
     def right_click(self, row, col):
         if self.game_over or (row, col) in self.revealed:
@@ -109,23 +109,23 @@ class Minesweeper:
         self.revealed.add((row, col))
         btn = self.buttons[row][col]
         
-        # Удаляем (скрываем) саму кнопку, чтобы не было артефактов
+        # Hide the button after click
         btn.grid_forget()
 
         mines_around = self.count_around(row, col)
 
         if mines_around > 0:
             colors = {1: "blue", 2: "green", 3: "red", 4: "purple", 5: "maroon", 6: "turquoise", 7: "black", 8: "gray"}
-            # Вместо кнопки рисуем плоский текст (Label)
+            # Writing the text instead of showing the button
             lbl = tk.Label(self.root, text=str(mines_around), font=("Arial", 12, "bold"), 
                            fg=colors.get(mines_around, "black"), width=3, height=1, bg="#e1e1e1", relief="flat")
             lbl.grid(row=row, column=col, padx=1, pady=1)
         else:
-            # Если вокруг пусто, оставляем просто серый квадрат (пустой Label)
+            # If cell don't have digit or bomb, draw gray button
             lbl = tk.Label(self.root, text="", width=3, height=1, bg="#e1e1e1", relief="flat")
             lbl.grid(row=row, column=col, padx=1, pady=1)
             
-            # Рекурсивно открываем соседей
+            # Recursively open neighbors.
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]:
                     nr, nc = row + dr, col + dc
@@ -133,16 +133,16 @@ class Minesweeper:
                         self.reveal_cell(nr, nc)
 
     def show_mines(self):
-        # Показываем все мины перед закрытием раунда
+        # Showing all mines before restart
         for r, c in self.mines:
             if (r, c) not in self.flags:
                 self.buttons[r][c].config(text="💣", bg=self.color_of_bombs, relief="sunken")
 
     def restart_window(self):
-        # Полностью уничтожаем текущие виджеты окна и пересоздаем класс игры
+        # Completely destroy the current window widgets and recreate the game class
         for widget in self.root.winfo_children():
             widget.destroy()
-        # Переинициализируем игру заново в том же окне
+        # Reinitialising the game in the same window
         self.color_of_bombs = 'red'
         self.__init__(self.root)
 

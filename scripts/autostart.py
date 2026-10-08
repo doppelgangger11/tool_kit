@@ -7,7 +7,7 @@ APP_NAME = "Toolkit"
 
 
 def _command(base_dir: Path) -> str:
-    # pythonw, чтобы не открывалось чёрное окно консоли
+    # pythonw, if you don't want to open with console
     python = Path(sys.executable)
     pythonw = python.with_name("pythonw.exe")
     if not pythonw.exists():

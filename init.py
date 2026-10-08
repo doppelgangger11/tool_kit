@@ -61,10 +61,10 @@ def create_default_settings(
     working_dir: Path,
 ) -> dict:
     """
-    Создаёт первоначальную конфигурацию проекта.
+    Creates the initial project configuration.
 
-    working_dir сохраняется как абсолютный путь,
-    остальные директории остаются относительными.
+    working_dir is stored as an absolute path,
+    the other directories stay relative.
     """
 
     settings = {
@@ -83,10 +83,10 @@ def create_settings(
     working_dir: Path,
 ) -> dict:
     """
-    Создаёт settings.ini.
+    Creates settings.ini.
 
     Returns:
-        Созданные настройки.
+        The created settings.
     """
 
     from scripts.settings_manager import write_settings
@@ -106,11 +106,11 @@ def create_settings(
 
 def ask_working_directory() -> Path:
     """
-    Запрашивает у пользователя директорию,
-    в которой приложение будет хранить свои данные.
+    Asks the user for the directory
+    where the application will store its data.
 
-    Если пользователь ничего не вводит,
-    используется ./data относительно проекта.
+    If the user enters nothing,
+    ./data relative to the project is used.
     """
 
     default_path = BASE_DIR / "data"
@@ -137,11 +137,11 @@ def create_directory(
     path: Path,
 ) -> bool:
     """
-    Создаёт директорию.
+    Creates a directory.
 
     Returns:
-        True  — директория была создана
-        False — уже существовала
+        True  — the directory was created
+        False — it already existed
     """
 
     if path.exists():
@@ -165,9 +165,9 @@ def create_required_directories(
     settings: dict,
 ) -> list[Path]:
     """
-    Создаёт только обязательные директории.
+    Creates only the required directories.
 
-    Сейчас обязательны:
+    Currently required:
 
         working_dir/
         working_dir/temp/
@@ -212,9 +212,9 @@ def create_notes(
     settings: dict,
 ) -> Path:
     """
-    Создаёт первоначальный notes.json.
+    Creates the initial notes.json.
 
-    Если файл уже существует — ничего не делает.
+    If the file already exists, does nothing.
     """
 
     working_dir = Path(
@@ -251,12 +251,12 @@ def create_notes(
 
 def check_dependencies() -> list[str]:
     """
-    Проверяет наличие необходимых Python-пакетов.
+    Checks that the required Python packages are present.
 
-    Ничего автоматически не устанавливает.
+    Installs nothing automatically.
 
     Returns:
-        Список отсутствующих пакетов.
+        List of missing packages.
     """
 
     missing = []
@@ -270,7 +270,7 @@ def check_dependencies() -> list[str]:
         ) is None:
 
             subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
-            
+
             missing.append(
                 package_name
             )
@@ -284,13 +284,13 @@ def check_dependencies() -> list[str]:
 
 def initialize_project() -> dict:
     """
-    Выполняет первоначальную инициализацию проекта.
+    Performs the initial project initialization.
 
-    ВАЖНО:
+    IMPORTANT:
 
-    Эта функция НЕ является self-healing.
+    This function is NOT self-healing.
 
-    Она предназначена для первого запуска.
+    It is intended for the first run.
     """
 
     result = {
@@ -397,7 +397,7 @@ def print_init_result(
     result: dict,
 ) -> None:
     """
-    Показывает результат инициализации.
+    Shows the initialization result.
     """
 
     print()

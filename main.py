@@ -17,7 +17,7 @@ from modules import build_modules
 BASE_DIR = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------
-# Один демон на компьютер
+# One daemon per computer
 # ---------------------------------------------------------
 
 instance = SingleInstance()
@@ -59,7 +59,7 @@ ctx = AppContext(
 )
 ctx.launcher = Launcher(ctx)
 
-# Главное окно, меню трея и лаунчер строятся из одного списка модулей (modules.py)
+# The main window, tray menu and launcher are all built from one module list (modules.py)
 MODULES = build_modules()
 
 tray_actions = [
@@ -72,13 +72,13 @@ tray = Tray(root, dispatcher, actions=tray_actions)
 ctx.tray = tray
 
 # ---------------------------------------------------------
-# Глобальная горячая клавиша лаунчера
+# Global launcher hotkey
 # ---------------------------------------------------------
 
 hotkey = GlobalHotkey()
 hotkey_spec = BASE_SETTINGS.get("BASE", {}).get("hotkey", "ctrl+space")
 
-# в ini можно написать hotkey = off (читается как False), чтобы отключить
+# in the ini you can write hotkey = off (parsed as False) to disable it
 if hotkey_spec and str(hotkey_spec).lower() not in ("off", "none", "false"):
     if not hotkey.start(str(hotkey_spec), lambda: dispatcher.call(ctx.launcher.toggle)):
         problems.append(f"Hotkey: {hotkey.error}")
@@ -122,7 +122,7 @@ root.geometry(f"{width + 20}x{height + 20}")
 if START_HIDDEN:
     root.withdraw()
 
-dispatcher.install_signal_handlers(tray.exit_app)     # Ctrl+C в терминале
+dispatcher.install_signal_handlers(tray.exit_app)     # Ctrl+C in the terminal
 instance.serve(lambda: dispatcher.call(tray.show_window))
 tray.start()
 

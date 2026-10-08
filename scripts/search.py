@@ -8,7 +8,7 @@ _RU_TO_EN = dict(zip(_RU, _EN))
 
 
 def switch_layout(text: str) -> str:
-    """'ср' -> 'ch', 'ch' -> 'ср'. Символы вне раскладки остаются как есть."""
+    """'ср' -> 'ch', 'ch' -> 'ср'. Characters outside the keyboard layouts remain unchanged."""
     out = []
     for ch in text.lower():
         out.append(_RU_TO_EN.get(ch) or _EN_TO_RU.get(ch) or ch)
@@ -25,7 +25,7 @@ def _score_token(token: str, text: str, fuzzy: bool) -> int | None:
     if text.startswith(token):
         return 900 - min(len(text) - len(token), 99)
 
-    # совпадение с началом любого слова
+    # Match the beginning of any word
     words = text.replace("-", " ").replace("_", " ").replace(".", " ").split()
     for word in words:
         if word.startswith(token):
@@ -35,8 +35,8 @@ def _score_token(token: str, text: str, fuzzy: bool) -> int | None:
     if index >= 0:
         return 600 - min(index, 99)
 
-    # подпоследовательность: "vsc" -> "Visual Studio Code".
-    # Только для коротких названий: в длинном тексте она совпадает почти с чем угодно.
+    # Subsequence match: "vsc" -> "Visual Studio Code".".
+    # Only for short names: in long text, it matches almost anything.
     if fuzzy and len(token) >= 2 and len(text) <= 80:
         pos = -1
         first = None
@@ -46,14 +46,14 @@ def _score_token(token: str, text: str, fuzzy: bool) -> int | None:
                 return None
             if first is None:
                 first = pos
-        spread = pos - first + 1 - len(token)   # сколько лишних символов между
+        spread = pos - first + 1 - len(token)   # Number of extra characters between matches
         return max(300 - spread * 5, 1)
 
     return None
 
 
 def score(query: str, text: str, fuzzy: bool = True) -> int | None:
-    """Оценка совпадения запроса с текстом. None - не подходит."""
+    """Match score for a query against text. None means no match."""
     text = text.lower()
     tokens = query.lower().split()
 
@@ -71,7 +71,7 @@ def score(query: str, text: str, fuzzy: bool = True) -> int | None:
 
 
 def best_score(query: str, text: str, fuzzy: bool = True) -> int | None:
-    """Лучшая оценка среди запроса и его версии в другой раскладке."""
+    """Best score between the query and its version in the other keyboard layout."""
     candidates = [score(query, text, fuzzy), score(switch_layout(query), text, fuzzy)]
     candidates = [c for c in candidates if c is not None]
     return max(candidates) if candidates else None

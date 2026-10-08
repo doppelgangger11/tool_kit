@@ -5,14 +5,14 @@ import random
 class TicTacToeAI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Крестики-нолики с ИИ")
+        self.root.title("Tic-Tac-Toe")
         
         self.human = "X"
         self.ai = "O"
-        self.current_player = self.human  # Игрок всегда ходит первым
+        self.current_player = self.human  # Human turn first
         self.buttons = []
         
-        # Создаем сетку кнопок 3x3
+        # Matrix of buttons in 3x3 mesh 
         for r in range(3):
             row_buttons = []
             for c in range(3):
@@ -23,32 +23,32 @@ class TicTacToeAI:
             self.buttons.append(row_buttons)
 
     def human_move(self, row, col):
-        # Если сейчас ход ИИ или клетка занята — игнорируем клик
+        # If AI's turn or cell is used - ignore click
         if self.current_player != self.human or self.buttons[row][col]["text"] != "":
             return
             
-        # Ход человека
+        # Human move
         self.make_move(row, col, self.human, "blue")
         
         if self.check_game_over():
             return
             
-        # Передаем ход компьютеру
+        # Giving the turn to AI
         self.current_player = self.ai
-        self.root.after(500, self.ai_move)  # Небольшая задержка для реалистичности
+        self.root.after(500, self.ai_move)  # A slight delay for realism.
 
     def ai_move(self):
-        # Находим лучший ход с помощью алгоритма Минимакс
+        # Finding the best move, using Mini-Max algorithm
         best_score = -float('inf')
         best_move = None
         
         for r in range(3):
             for c in range(3):
                 if self.buttons[r][c]["text"] == "":
-                    # Пробуем сделать ход
+                    # Trying to do the move
                     self.buttons[r][c]["text"] = self.ai
                     score = self.minimax(0, False)
-                    # Отменяем ход
+                    # Undo the move 
                     self.buttons[r][c]["text"] = ""
                     
                     if score > best_score:
@@ -64,7 +64,7 @@ class TicTacToeAI:
         self.current_player = self.human
 
     def minimax(self, depth, is_maximizing):
-        # Базовые условия: проверяем, завершилась ли игра на этом шаге симуляции
+        # Basic conditions checup: is this move end the game?
         if self.evaluate_winner(self.ai):
             return 10 - depth
         if self.evaluate_winner(self.human):
@@ -99,22 +99,22 @@ class TicTacToeAI:
 
     def check_game_over(self):
         if self.evaluate_winner(self.human):
-            messagebox.showinfo("Победа!", "Вы победили ИИ!")
+            messagebox.showinfo("WIN!", "You are bit the AI!")
             self.reset_game()
             return True
         if self.evaluate_winner(self.ai):
-            messagebox.showinfo("Поражение", "ИИ победил!")
+            messagebox.showinfo("Fail", "The AI is win!")
             self.reset_game()
             return True
         if self.is_board_full():
-            messagebox.showinfo("Ничья", "Ничья!")
+            messagebox.showinfo("The draw", "The draw!")
             self.reset_game()
             return True
         return False
 
     def evaluate_winner(self, p):
         b = self.buttons
-        # Проверка строк, столбцов и диагоналей для конкретного игрока 'p'
+        # Checking the rows, collumns and diagnals for the player "p"
         for i in range(3):
             if b[i][0]["text"] == b[i][1]["text"] == b[i][2]["text"] == p: return True
             if b[0][i]["text"] == b[1][i]["text"] == b[2][i]["text"] == p: return True

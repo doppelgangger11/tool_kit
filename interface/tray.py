@@ -9,27 +9,27 @@ def _make_icon_image() -> Image.Image:
     image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((4, 4, 60, 60), radius=12, fill=(35, 35, 35, 255))
-    draw.rectangle((16, 16, 48, 25), fill="white")   # буква T
+    draw.rectangle((16, 16, 48, 25), fill="white")  # Letter T
     draw.rectangle((28, 25, 36, 50), fill="white")
     return image
 
 
 class Tray:
     """
-    Иконка в трее - главный пульт демона.
-    Все действия выполняются в главном потоке Tk через dispatcher,
-    pystray живёт в своём потоке и Tk напрямую не трогает.
+    Tray icon - the main daemon control panel.
+
+    All actions are executed in the main Tk thread through the dispatcher.
+    pystray runs in its own thread and does not interact with Tk directly.
     """
 
     def __init__(self, root: tk.Tk, dispatcher, actions=(), on_exit=None):
         """
-        actions - список (название, функция без аргументов) для меню трея
-        on_exit - необязательная функция, вызывается перед закрытием
+        actions - list of (name, function without arguments) for the tray menu.
+        on_exit - optional function called before closing.
         """
         self.root = root
         self.dispatch = dispatcher.call
         self.on_exit = on_exit
-
         self._notified = False
         self._exiting = False
 
@@ -52,7 +52,7 @@ class Tray:
             menu=pystray.Menu(*items),
         )
 
-        # крестик окна не завершает демон, а прячет окно
+        # Closing the window does not terminate the daemon; it hides the window.
         root.protocol("WM_DELETE_WINDOW", self.hide_window)
 
     def _cb(self, func):
@@ -60,7 +60,7 @@ class Tray:
             self.dispatch(func)
         return handler
 
-    # ---- выполняются в главном потоке ----
+    # ---- Executed in the main thread ----
 
     def show_window(self):
         self.root.deiconify()
@@ -96,7 +96,7 @@ class Tray:
         except tk.TclError:
             pass
 
-    # ---- управление иконкой ----
+    # ---- Icon management ----
 
     def start(self):
         threading.Thread(target=self.icon.run, daemon=True).start()

@@ -12,22 +12,22 @@ from typing import Any
 SETTINGS_FILE = "settings.ini"
 TEMPLATES_DIR_NAME = "templates"
 
-# Значения для НОВОЙ установки. Существующий settings.ini не меняется,
-# недостающие ключи просто добираются отсюда.
+# Values for a NEW installation. An existing settings.ini is not changed,
+# missing keys are simply filled in from here.
 DEFAULTS: dict[str, dict[str, Any]] = {
     "BASE": {
         "log": False,
-        "hotkey": "ctrl+space",   # лаунчер; "off" - отключить
+        "hotkey": "ctrl+space",   # launcher; "off" - disable
     },
     "DIRS": {
-        "working_dir": "./workspace",   # относительно папки с main.py
-        "temp_dir": "/temp",            # внутри working_dir
+        "working_dir": "./workspace",   # relative to the folder with main.py
+        "temp_dir": "/temp",            # inside working_dir
         "notes_dir": "./db",
     },
     "PROGRAMS": {},
     "ARCHITECTURE": {
         "activation_dir": "active",
-        "active": "./active",           # внутри working_dir
+        "active": "./active",           # inside working_dir
         "tests": "./tests",
         "complete": "./complete",
     },
@@ -46,10 +46,10 @@ EXAMPLE_TEMPLATE = {
 # ---------------------------------------------------------
 
 def _new_parser() -> ConfigParser:
-    # interpolation=None: символ % в значениях (например %APPDATA%) не ломает чтение
-    # delimiters=("=",): двоеточие в имени программы не считается разделителем
+    # interpolation=None: the % character in values (e.g. %APPDATA%) does not break reading
+    # delimiters=("=",): a colon in a program name is not treated as a delimiter
     config = ConfigParser(interpolation=None, delimiters=("=",))
-    config.optionxform = str  # сохраняем регистр ключей
+    config.optionxform = str  # keep the case of keys
     return config
 
 
@@ -77,8 +77,8 @@ def _convert(value: str) -> Any:
 
 def read_settings(directory: Path) -> dict[str, dict[str, Any]]:
     """
-    Всегда возвращает полный набор настроек:
-    значения из settings.ini поверх DEFAULTS, ничего не падает с KeyError.
+    Always returns the full set of settings:
+    values from settings.ini on top of DEFAULTS, nothing fails with KeyError.
     """
     directory = Path(directory)
     path = directory / SETTINGS_FILE
@@ -126,7 +126,7 @@ def write_settings(
     path = directory / SETTINGS_FILE
     tmp = path.with_name(SETTINGS_FILE + ".tmp")
 
-    # пишем во временный файл и подменяем, чтобы сбой не оставил обрезанный ini
+    # write to a temporary file and swap it in, so a failure cannot leave a truncated ini
     with tmp.open("w", encoding="utf-8") as file:
         config.write(file)
 
@@ -146,8 +146,8 @@ def _try_write(directory: Path, settings) -> None:
 
 def resolve_path(working_dir: Path, value) -> Path:
     """
-    "temp" и "/temp" -> <working_dir>/temp
-    "C:/something"   -> как есть (абсолютный путь Windows)
+    "temp" and "/temp" -> <working_dir>/temp
+    "C:/something"     -> as is (absolute Windows path)
     """
     value = str(value).strip()
 
@@ -187,8 +187,8 @@ def get_dirs(base_dir: Path, settings: dict) -> dict[str, Path]:
 
 def ensure_structure(base_dir: Path, settings: dict) -> list[str]:
     """
-    Создаёт все нужные папки и пример шаблона, если шаблонов ещё нет.
-    Возвращает список проблем (пустой список = всё в порядке).
+    Creates all required folders and an example template if there are no templates yet.
+    Returns a list of problems (an empty list = everything is fine).
     """
     problems = []
     dirs = get_dirs(base_dir, settings)

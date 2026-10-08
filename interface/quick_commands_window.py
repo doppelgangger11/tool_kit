@@ -145,7 +145,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             actions_frame,
-            text="+ Создать группу",
+            text="+ Create new Group",
             command=self._create_group
         ).pack(
             side="left"
@@ -279,8 +279,8 @@ class QuickCommandsWindow:
         if not directory.exists():
 
             messagebox.showerror(
-                "Ошибка",
-                "Рабочая директория не существует.",
+                "Error",
+                "The working directory does not exist..",
                 parent=self.window
             )
 
@@ -289,8 +289,8 @@ class QuickCommandsWindow:
         if not directory.is_dir():
 
             messagebox.showerror(
-                "Ошибка",
-                "Указанный путь не является директорией.",
+                "Error",
+                "The specified path is not a directory.",
                 parent=self.window
             )
 
@@ -323,7 +323,7 @@ class QuickCommandsWindow:
 
             ttk.Label(
                 self.groups_frame,
-                text="Нет созданных групп."
+                text="No groups have been created."
             ).pack(
                 pady=30
             )
@@ -366,7 +366,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             header,
-            text="+ Команда",
+            text="+ Command",
             command=lambda g=group:
                 self._create_command(g)
         ).pack(
@@ -375,7 +375,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             header,
-            text="Удалить группу",
+            text="Delete group",
             command=lambda g=group:
                 self._delete_group(g)
         ).pack(
@@ -393,7 +393,7 @@ class QuickCommandsWindow:
 
             ttk.Label(
                 frame,
-                text="Нет команд."
+                text="No commands."
             ).pack(
                 anchor="w",
                 padx=10,
@@ -475,7 +475,7 @@ class QuickCommandsWindow:
         )
 
         window.title(
-            "Создать группу"
+            "Create group"
         )
 
         window.geometry(
@@ -506,7 +506,7 @@ class QuickCommandsWindow:
 
         ttk.Label(
             frame,
-            text="Название группы:"
+            text="Group name:"
         ).pack(
             anchor="w"
         )
@@ -540,7 +540,7 @@ class QuickCommandsWindow:
             except ValueError as error:
 
                 messagebox.showwarning(
-                    "Ошибка",
+                    "Error",
                     str(error),
                     parent=window
                 )
@@ -552,7 +552,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             frame,
-            text="Создать",
+            text="Create",
             command=save
         ).pack(
             side="right"
@@ -560,7 +560,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             frame,
-            text="Отмена",
+            text="Cancel",
             command=window.destroy
         ).pack(
             side="right",
@@ -573,11 +573,11 @@ class QuickCommandsWindow:
     ):
 
         result = messagebox.askyesno(
-            "Удаление группы",
+            "Deleting a group",
             (
-                f"Удалить группу '{group}'?\n\n"
-                "Все команды этой группы "
-                "также будут удалены."
+                f"Delete group '{group}'?\n\n"
+                "All commands in this group"
+                "will also be deleted."
             ),
             parent=self.window
         )
@@ -624,9 +624,9 @@ class QuickCommandsWindow:
         )
 
         editor.title(
-            "Редактирование команды"
+            "Editing the command"
             if command
-            else "Создание команды"
+            else "Creating a command"
         )
 
         editor.geometry(
@@ -661,7 +661,7 @@ class QuickCommandsWindow:
 
         ttk.Label(
             frame,
-            text="Название:"
+            text="Name:"
         ).pack(
             anchor="w"
         )
@@ -686,7 +686,7 @@ class QuickCommandsWindow:
 
         ttk.Label(
             frame,
-            text="Команда:"
+            text="Command:"
         ).pack(
             anchor="w"
         )
@@ -719,7 +719,7 @@ class QuickCommandsWindow:
 
         ttk.Checkbutton(
             frame,
-            text="Запрашивать параметр перед выполнением",
+            text="Prompt for parameter before execution",
             variable=parameter_var
         ).pack(
             anchor="w",
@@ -738,7 +738,7 @@ class QuickCommandsWindow:
 
         ttk.Checkbutton(
             frame,
-            text="Требуются права администратора",
+            text="Administrator privileges are required.",
             variable=admin_var
         ).pack(
             anchor="w",
@@ -761,7 +761,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             buttons,
-            text="Сохранить",
+            text="Save",
             command=lambda:
                 self._save_command(
                     editor,
@@ -780,7 +780,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             buttons,
-            text="Отмена",
+            text="Cancel",
             command=editor.destroy
         ).pack(
             side="right",
@@ -808,8 +808,8 @@ class QuickCommandsWindow:
         if not name:
 
             messagebox.showwarning(
-                "Ошибка",
-                "Введите название команды.",
+                "Error",
+                "Enter the command name.",
                 parent=editor
             )
 
@@ -818,8 +818,8 @@ class QuickCommandsWindow:
         if not command_text:
 
             messagebox.showwarning(
-                "Ошибка",
-                "Введите команду.",
+                "Error",
+                "Enter the command.",
                 parent=editor
             )
 
@@ -847,7 +847,7 @@ class QuickCommandsWindow:
             except ValueError as error:
 
                 messagebox.showerror(
-                    "Ошибка",
+                    "Error",
                     str(error),
                     parent=editor
                 )
@@ -869,7 +869,7 @@ class QuickCommandsWindow:
             except ValueError as error:
 
                 messagebox.showerror(
-                    "Ошибка",
+                    "Error",
                     str(error),
                     parent=editor
                 )
@@ -890,8 +890,8 @@ class QuickCommandsWindow:
     ):
 
         result = messagebox.askyesno(
-            "Удаление команды",
-            f"Удалить '{command.name}'?",
+            "Deleting command",
+            f"Delete '{command.name}'?",
             parent=self.window
         )
 
@@ -944,8 +944,8 @@ class QuickCommandsWindow:
             except (IndexError, KeyError, ValueError):
 
                 messagebox.showerror(
-                    "Ошибка",
-                    "Не удалось подставить параметр.",
+                    "Error",
+                    "Failed to substitute parameter.",
                     parent=self.window
                 )
 
@@ -962,7 +962,7 @@ class QuickCommandsWindow:
         except Exception as error:
 
             messagebox.showerror(
-                "Ошибка выполнения",
+                "Execution error",
                 str(error),
                 parent=self.window
             )
@@ -1056,7 +1056,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             buttons,
-            text="Выполнить",
+            text="Execute",
             command=execute
         ).pack(
             side="right"
@@ -1064,7 +1064,7 @@ class QuickCommandsWindow:
 
         ttk.Button(
             buttons,
-            text="Отмена",
+            text="Cancel",
             command=cancel
         ).pack(
             side="right",

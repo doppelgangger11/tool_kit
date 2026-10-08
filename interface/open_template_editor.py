@@ -25,7 +25,7 @@ def _dir_label(value: str) -> str:
 
 
 def _clean_sub(text: str):
-    """Возвращает (подпапка, ошибка)."""
+    """Returns (subfolder, error)."""
     text = text.strip().replace("\\", "/").strip("/")
 
     if not text:
@@ -200,12 +200,12 @@ def _open_file_dialog(parent, files_dir: Path, dirs: list, on_ok):
 
 def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=None):
     """
-    configs_dir - куда сохраняется <name>.json (tool_kit/db/tasks_templates)
-    files_dir   - откуда берутся файлы-заготовки (temp/templates)
-    on_saved    - on_saved(template_name) после успешного сохранения
-    existing    - {"file": "x.json", "data": {...}} -> режим редактирования,
-                  None -> создание нового шаблона
-    Возвращает окно (чтобы вызывающий мог сделать wait_window).
+    configs_dir - where <name>.json is saved (tool_kit/db/tasks_templates)
+    files_dir   - where template files are sourced from (temp/templates)
+    on_saved    - on_saved(template_name) called after successful saving
+    existing    - {"file": "x.json", "data": {...}} -> edit mode,
+                  None -> create new template
+    Returns the window (so the caller can call wait_window).
     """
     configs_dir = Path(configs_dir)
     files_dir = Path(files_dir)
@@ -213,7 +213,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=N
     is_edit = existing is not None
     data0 = (existing or {}).get("data", {}) or {}
 
-    # ---- начальное состояние ----
+    # ---- initial state ----
     dirs: list[str] = [str(d) for d in data0.get("dirs", [])] or [_dir_value("")]
 
     cfg0 = data0.get("copy_from_temp", {}) or {}
@@ -305,7 +305,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=N
 
     # ---- refresh helpers ----
     def refresh_dirs():
-        # у disabled Listbox insert/delete не работают
+        # Insert/delete don't work for a disabled Listbox.
         copy_list.config(state="normal")
 
         dirs_list.delete(0, "end")
@@ -435,7 +435,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=N
             )
             return
 
-        # сохраняем и неизвестные ключи, если они были в исходном json
+        # preserve unknown keys as well, if they were present in the original JSON
         data = dict(data0)
         data.update({
             "name": name,
@@ -445,7 +445,7 @@ def open_template_editor(root, configs_dir, files_dir, on_saved=None, existing=N
         })
 
         if is_edit:
-            # редактирование: пишем в тот же файл
+            # editing: write to the same file
             path = configs_dir / existing["file"]
         else:
             path = configs_dir / f"{_slug(name)}.json"

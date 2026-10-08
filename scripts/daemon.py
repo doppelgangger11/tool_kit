@@ -14,9 +14,10 @@ POLL_MS = 100
 
 class Dispatcher:
     """
-    Выполняет функции в главном потоке Tk.
-    call() можно безопасно вызывать из любого потока:
-    из pystray, из Telegram-бота, из сокета и т.д.
+    Executes functions in the Tk main thread.
+
+    call() can be safely called from any thread:
+    from pystray, from a Telegram bot, from a socket, etc.
     """
 
     def __init__(self, root):
@@ -28,12 +29,12 @@ class Dispatcher:
         self._queue.put((func, args, kwargs))
 
     def _poll(self):
-        # следующий опрос планируем СРАЗУ: если функция запустит вложенный
-        # цикл (wait_window), опрос не остановится
+        # Schedule the next poll IMMEDIATELY: if the function starts a nested
+        # loop (wait_window), polling will not stop.
         try:
             self.root.after(POLL_MS, self._poll)
         except tk.TclError:
-            return  # окно уже уничтожено
+            return  # The window has already been destroyed.
 
         while True:
             try:
@@ -48,9 +49,10 @@ class Dispatcher:
 
     def install_signal_handlers(self, on_quit):
         """
-        Ctrl+C / закрытие из терминала -> корректный выход.
-        Работает благодаря периодическому опросу: без него Tk на Windows
-        не пропускает сигналы, пока нет событий.
+        Ctrl+C / closing from the terminal -> graceful exit.
+
+        Works thanks to periodic polling: without it, Tk on Windows
+        does not process signals while there are no events.
         """
 
         def handler(signum, frame):
@@ -68,8 +70,8 @@ class Dispatcher:
 
 class SingleInstance:
     """
-    Не даёт запустить второй демон. Второй запуск просит первый
-    показать окно и завершается.
+    Prevents a second daemon instance from being launched.
+    A second launch asks the first instance to show the window and exits.
     """
 
     def __init__(self, port: int = SINGLE_INSTANCE_PORT):
@@ -78,10 +80,11 @@ class SingleInstance:
         self._closed = False
 
     def acquire(self) -> bool:
-        """True - мы первый экземпляр, False - уже запущен другой."""
+        """True - we are the first instance, False - another instance is already running."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # на Windows SO_REUSEADDR разрешил бы двойной bind, поэтому только не-Windows
+        # On Windows, SO_REUSEADDR would allow a double bind,
+        # so it is only enabled on non-Windows systems.
         if os.name != "nt":
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -108,7 +111,10 @@ class SingleInstance:
             return False
 
     def serve(self, on_show):
-        """Слушает запросы 'show' от повторных запусков. on_show зовётся из другого потока."""
+        """
+        Listens for 'show' requests from subsequent launches.
+        on_show is called from another thread.
+        """
 
         def loop():
             while not self._closed:
@@ -132,7 +138,7 @@ class SingleInstance:
         self._closed = True
         if self._sock is not None:
             try:
-                # shutdown будит поток, ждущий в accept()
+                # shutdown wakes the thread waiting in accept().
                 self._sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass

@@ -17,7 +17,7 @@ from interface.open_template_editor import open_template_editor
 def _resolve_path(working_dir: Path, path_value) -> Path:
     """
     "temp" и "/temp" -> <working_dir>/temp
-    "C:/something"   -> как есть (абсолютный путь Windows)
+    "C:/something"   -> Windows Absolute path
     """
     path_value = str(path_value).strip()
 
@@ -34,7 +34,7 @@ def _resolve_path(working_dir: Path, path_value) -> Path:
 
 def _load_templates(configs_dir: Path):
     """
-    Возвращает ({отображаемое имя: {"file": имя файла, "data": dict}}, [ошибки]).
+    Return ({The name: {"file": File name, "data": dict}}, [errors]).
     """
     templates = {}
     errors = []
@@ -52,7 +52,7 @@ def _load_templates(configs_dir: Path):
 
             name = str(data.get("name", "")).strip() or template_file.stem
 
-            # одинаковые name у разных файлов не должны затирать друг друга
+            # Files with the same name should not overwrite each other.
             if name in templates:
                 name = f"{name} ({template_file.name})"
 
@@ -76,9 +76,9 @@ def _pretty(path_value) -> str:
 
 def open_activation(root, base_dir, settings):
     """
-    root      - главное окно tk
-    base_dir  - папка tool_kit (BASE_DIR), там лежит settings.ini и db/
-    settings  - словарь из read_settings()
+    root      - Tk main window
+    base_dir  - 'tool_kit' folder (BASE_DIR) containing 'settings.ini' and 'db/'
+    settings  - Dictionary from 'read_settings()'
     """
 
     # ---------------- paths ----------------
@@ -95,9 +95,9 @@ def open_activation(root, base_dir, settings):
     temp_dir = _resolve_path(working_dir, dirs_cfg.get("temp_dir", "/temp"))
     active_dir = _resolve_path(working_dir, arch_cfg.get("active", "./active"))
 
-    # .json описания шаблонов
+    # .json template descriptions
     configs_dir = base_dir / "db" / "tasks_templates"
-    # файлы-заготовки (dag.py, sql.sql, ...) - только читаем, не трогаем
+    # boilerplate files (dag.py, sql.sql, ...) – read-only; do not modify
     files_dir = temp_dir / TEMPLATES_DIR_NAME
 
     print(

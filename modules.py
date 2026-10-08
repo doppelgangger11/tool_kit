@@ -1,6 +1,6 @@
 """
-Список утилит Toolkit. Чтобы добавить новую - допиши Module в build_modules().
-Тяжёлые модули (игры) импортируются лениво, при первом клике.
+List of Toolkit utilities. To add a new one, add a Module to build_modules().
+Heavy modules (games) are imported lazily, on first click.
 """
 from scripts.registry import Module
 

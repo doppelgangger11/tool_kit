@@ -34,7 +34,7 @@ class Launcher:
     def __init__(self, ctx: AppContext):
         self.ctx = ctx
         self.win: tk.Toplevel | None = None
-        self._programs: dict | None = None      # кэш ярлыков из меню Пуск
+        self._programs: dict | None = None      # Start menu shortcut cache
         self._items: list[Item] = []
         self._shown: list[Item] = []
         self._opened_at = 0.0
@@ -86,7 +86,7 @@ class Launcher:
             frame, font=("Segoe UI", 12), height=MAX_RESULTS, bd=0,
             activestyle="none", exportselection=False,
         )
-        # список появится, когда будут результаты
+        # The list will appear when the results are available.
 
         self.query.trace_add("write", lambda *_: self._refresh())
         self.entry.bind("<Down>", lambda e: self._move(1) or "break")
@@ -104,7 +104,7 @@ class Launcher:
         self.entry.focus_set()
 
     def _on_focus_out(self, _event):
-        # игнорируем потерю фокуса сразу после открытия (Windows любит её устраивать)
+        # Ignore the loss of focus immediately after opening (Windows likes to cause that)
         if time.monotonic() - self._opened_at < 0.4:
             return
         self.ctx.root.after(120, self._close_if_unfocused)
@@ -163,7 +163,7 @@ class Launcher:
             if s is not None:
                 scores.append(int(s * 0.9))
 
-        # по тексту заметок - только точная подстрока и от 3 символов
+        # The note text: exact substring match only, minimum 3 characters.
         if item.body and len(query) >= 3:
             s = best_score(query, item.body, fuzzy=False)
             if s is not None:
@@ -188,7 +188,7 @@ class Launcher:
 
         item = self._shown[current[0]]
         self.close()
-        # после закрытия окна, чтобы диалоги/окна утилит получили фокус
+        # After closing the window, so that utility dialogs/windows receive focus
         self.ctx.root.after(30, item.run)
         return "break"
 
@@ -278,11 +278,11 @@ class Launcher:
             try:
                 text = text.format(value)
             except (IndexError, KeyError, ValueError):
-                messagebox.showerror("Ошибка", "Не удалось подставить параметр.", parent=root)
+                messagebox.showerror("Error", "Failed to substitute parameter.", parent=root)
                 return
 
         if DANGEROUS.search(text):
-            if not messagebox.askyesno("Подтверждение", f"Выполнить?\n\n{text}", parent=root):
+            if not messagebox.askyesno("Confirm", f"Execute?\n\n{text}", parent=root):
                 return
 
         cwd = get_dirs(self.ctx.base_dir, self.ctx.settings)["working"]
@@ -290,4 +290,4 @@ class Launcher:
         try:
             subprocess.Popen(text, cwd=cwd, shell=True)
         except Exception as error:
-            messagebox.showerror("Ошибка выполнения", str(error), parent=root)
+            messagebox.showerror("Execution error:", str(error), parent=root)

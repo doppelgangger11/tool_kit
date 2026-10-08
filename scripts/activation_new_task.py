@@ -10,7 +10,7 @@ INVALID_NAME_CHARS = '<>:"/\\|?*'
 
 
 class TempCleanupError(Exception):
-    """Проект создан и файлы скопированы, но temp почистить не удалось."""
+    """Project created and files copied, but temp could not be cleaned up."""
 
 
 @dataclass
@@ -24,7 +24,7 @@ class ActivationResult:
 # ---------------------------------------------------------
 
 def validate_project_name(name: str) -> str | None:
-    """Возвращает текст ошибки или None, если имя нормальное."""
+    """Returns an error message or None if the name is valid."""
     name = name.strip()
 
     if not name:
@@ -45,7 +45,7 @@ def _is_templates_dir(item: Path) -> bool:
 
 
 def list_temp_items(temp_dir: Path) -> list[Path]:
-    """Всё содержимое temp, КРОМЕ temp/templates."""
+    """Returns all contents of temp EXCEPT temp/templates."""
     if not temp_dir.is_dir():
         return []
 
@@ -85,7 +85,7 @@ def _final_name(source: Path, file_config: dict) -> str:
 
 
 def _check_template(template: dict, templates_dir: Path) -> None:
-    """Проверяем всё ДО создания чего-либо на диске."""
+    """Check everything BEFORE creating anything on disk."""
     for file_config in template.get("files", []):
         name = file_config.get("template", "")
 
@@ -113,9 +113,11 @@ def _copy_from_temp(
     project_name: str,
 ) -> bool:
     """
-    Копирует всё из temp (кроме temp/templates) в dirs шаблона.
-    True  -> файлы скопированы и проверены, temp можно чистить.
-    False -> копировать нечего или некуда, temp не трогаем.
+    Copies everything from temp (except temp/templates) into
+    the template directories.
+
+    True  -> files were copied and verified, temp can be cleaned.
+    False -> nothing to copy or no destination, temp is left untouched.
     """
     config = template.get("copy_from_temp", {})
 
@@ -140,7 +142,7 @@ def _copy_from_temp(
             else:
                 shutil.copy2(source, target)
 
-            # Проверка: чистить temp можно только если копия на месте
+            # Verify: temp can only be cleaned if the copy exists.
             if not target.exists():
                 raise RuntimeError(f"Copy failed: {source} -> {target}")
 
@@ -153,7 +155,7 @@ def _copy_template_files(
     active_folder: Path,
     project_name: str,
 ) -> None:
-    """Файлы из temp/templates только читаются (copy-paste), не удаляются."""
+    """Files from temp/templates are only read (copy-paste), never deleted."""
     for file_config in template.get("files", []):
         template_file = file_config.get("template", "")
 
@@ -172,7 +174,7 @@ def _copy_template_files(
 
 
 def _clear_temp(temp_dir: Path) -> None:
-    """Чистит temp, temp/templates пропускается ВСЕГДА."""
+    """Cleans temp; temp/templates is ALWAYS skipped."""
     errors = []
 
     for item in list_temp_items(temp_dir):
