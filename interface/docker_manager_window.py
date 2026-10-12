@@ -87,6 +87,37 @@ def format_duration(seconds):
     return f"{secs}s"
 
 
+EXIT_HINTS = {
+    137: "SIGKILL: the container was force-killed. Usually the stop timeout "
+         "(10 s by default) ran out before the app shut down, or the system "
+         "killed it for lack of memory.",
+    143: "SIGTERM: the container was asked to stop and exited on that signal.",
+    139: "SIGSEGV: the process crashed (segmentation fault).",
+    126: "The command was found but cannot be executed (permissions?).",
+    127: "Command not found inside the container.",
+    1: "General application error, check the container logs.",
+}
+
+
+def explain_exit(status, exit_code, oom_killed=False):
+    if status not in ("exited", "dead"):
+        return ""
+
+    if oom_killed:
+        return (
+            "Out of memory: the container was killed for exceeding its memory "
+            "limit (or Docker Desktop / WSL2 ran out of RAM). Give Docker "
+            "more memory or reduce the number of workers."
+        )
+
+    if exit_code == 0:
+        return "Exited normally."
+
+    return EXIT_HINTS.get(
+        exit_code, f"Exited with code {exit_code}, check the container logs."
+    )
+
+
 def describe_container(container, now=None):
     state = container.get("State") or {}
     labels = (container.get("Config") or {}).get("Labels") or {}
@@ -96,6 +127,7 @@ def describe_container(container, now=None):
     status = state.get("Status", "unknown")
     health = (state.get("Health") or {}).get("Status", "not configured")
     exit_code = state.get("ExitCode", 0)
+    oom = bool(state.get("OOMKilled"))
 
     uptime = "—"
     if status == "running":
@@ -106,21 +138,35 @@ def describe_container(container, now=None):
 
     if status == "running" and health in ("healthy", "not configured"):
         tag = "healthy"
-    elif status == "exited" and exit_code == 0:
+    elif status == "exited" and exit_code == 0 and not oom:
         tag = "done"
-    elif status in ("exited", "dead") or health == "unhealthy":
+    elif status == "exited" and exit_code in (137, 143) and not oom:
+        tag = "warning"
+    elif (
+        status in ("exited", "dead")
+        or oom
+        or (status == "running" and health == "unhealthy")
+    ):
         tag = "error"
     else:
         tag = "warning"
+
+    if status != "running":
+        health_text = "—"
+    elif health == "not configured":
+        health_text = "no healthcheck"
+    else:
+        health_text = health
 
     return {
         "id": container.get("Id") or name,
         "service": service,
         "name": name,
         "state": status,
-        "health": health,
+        "health": health_text,
         "uptime": uptime,
         "exit_code": "" if status == "running" else exit_code,
+        "hint": explain_exit(status, exit_code, oom),
         "tag": tag,
     }
 
@@ -159,6 +205,7 @@ class DockerManagerWindow:
         self.projects = self._load_projects()
         self.selected_project = None
         self.selected_container = None
+        self.rows = {}
 
         self.events = queue.Queue()
         self.job_busy = False
@@ -477,6 +524,13 @@ class DockerManagerWindow:
         self.elapsed_label = ttk.Label(details, text="Last refresh: —")
         self.elapsed_label.grid(row=1, column=0, sticky="w", pady=(3, 0))
 
+        self.exit_hint = ttk.Label(
+            details, text="", wraplength=820, foreground="#b7791f"
+        )
+        self.exit_hint.grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(3, 0)
+        )
+
         detail_buttons = ttk.Frame(details)
         detail_buttons.grid(row=0, column=1, rowspan=2, padx=(8, 0))
 
@@ -518,10 +572,20 @@ class DockerManagerWindow:
     def _clear_containers(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.rows = {}
+        self.exit_hint.config(text="")
 
     def _on_container_selected(self, _event=None):
         selection = self.tree.selection()
         self.selected_container = selection[0] if selection else None
+        self._update_exit_hint()
+
+    def _update_exit_hint(self):
+        row = self.rows.get(self.selected_container)
+        hint = row["hint"] if row else ""
+        self.exit_hint.config(
+            text=f"{row['service']}: {hint}" if hint else ""
+        )
 
     # --------------------------------------------------
     # ASYNC COMMAND EXECUTION
@@ -758,7 +822,8 @@ class DockerManagerWindow:
             key=lambda row: row["service"],
         )
 
-        wanted = {row["id"] for row in rows}
+        self.rows = {row["id"]: row for row in rows}
+        wanted = set(self.rows)
 
         for stale in set(self.tree.get_children()) - wanted:
             self.tree.delete(stale)
@@ -784,6 +849,8 @@ class DockerManagerWindow:
             self.selected_container
         ):
             self.selected_container = None
+
+        self._update_exit_hint()
 
         if not rows:
             self._set_status(
@@ -922,7 +989,7 @@ class DockerManagerWindow:
                     result = _run(
                         ["docker", "logs", "--tail", "300", container_id],
                         timeout=15,
-                        merge_stderr=True,   # stdout & stderr
+                        merge_stderr=True,   # stdout и stderr
                     )
                     logs = result.stdout
                     if result.returncode:
