@@ -1,24 +1,154 @@
-
 from __future__ import annotations
 
 import json
 import queue
+import re
 import subprocess
 import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 
 import tkinter as tk
+from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
+
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+DOCKER_MISSING = (
+    "Docker CLI not found. Install Docker Desktop and make sure "
+    "'docker' is available in PATH."
+)
+
+
+# --------------------------------------------------
+# HELPERS (no Tk, easy to test)
+# --------------------------------------------------
+
+def _run(command, timeout, cwd=None, merge_stderr=False):
+    try:
+        return subprocess.run(
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            creationflags=NO_WINDOW,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(DOCKER_MISSING) from None
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"Timed out after {timeout} s: {' '.join(command[:4])}"
+        ) from None
+
+
+_TIME_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+)
+
+
+def parse_docker_time(value):
+    if not value or str(value).startswith("0001-01-01"):
+        return None
+
+    match = _TIME_RE.match(str(value))
+    if not match:
+        return None
+
+    base, fraction, tz = match.groups()
+    fraction = ((fraction or ".") + "000000")[:7]
+    tz = "+00:00" if tz in (None, "Z") else tz
+
+    try:
+        return datetime.fromisoformat(f"{base}{fraction}{tz}")
+    except ValueError:
+        return None
+
+
+def format_duration(seconds):
+    seconds = max(int(seconds), 0)
+    days, rest = divmod(seconds, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes, secs = divmod(rest, 60)
+
+    if days:
+        return f"{days}d {hours}h"
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def describe_container(container, now=None):
+    state = container.get("State") or {}
+    labels = (container.get("Config") or {}).get("Labels") or {}
+
+    name = (container.get("Name") or "").lstrip("/")
+    service = labels.get("com.docker.compose.service") or name
+    status = state.get("Status", "unknown")
+    health = (state.get("Health") or {}).get("Status", "not configured")
+    exit_code = state.get("ExitCode", 0)
+
+    uptime = "—"
+    if status == "running":
+        started = parse_docker_time(state.get("StartedAt"))
+        if started:
+            now = now or datetime.now(timezone.utc)
+            uptime = format_duration((now - started).total_seconds())
+
+    if status == "running" and health in ("healthy", "not configured"):
+        tag = "healthy"
+    elif status == "exited" and exit_code == 0:
+        tag = "done"
+    elif status in ("exited", "dead") or health == "unhealthy":
+        tag = "error"
+    else:
+        tag = "warning"
+
+    return {
+        "id": container.get("Id") or name,
+        "service": service,
+        "name": name,
+        "state": status,
+        "health": health,
+        "uptime": uptime,
+        "exit_code": "" if status == "running" else exit_code,
+        "tag": tag,
+    }
+
+
+def _short(text, limit=200):
+    lines = [line for line in str(text).splitlines() if line.strip()]
+    first = lines[0].strip() if lines else str(text)
+    return first if len(first) <= limit else first[: limit - 1] + "…"
+
+
+def _grab(window):
+    try:
+        window.wait_visibility()
+        window.grab_set()
+    except tk.TclError:
+        pass
+
+
+# --------------------------------------------------
+# WINDOW
+# --------------------------------------------------
 
 class DockerManagerWindow:
     """Docker Compose manager for Toolkit."""
 
     POLL_INTERVAL = 3000
     COMMAND_TIMEOUT = 120
+    ENGINE_CHECK_INTERVAL = 30
 
     def __init__(self, root, base_dir, settings=None):
         self.root = root
@@ -31,9 +161,15 @@ class DockerManagerWindow:
         self.selected_container = None
 
         self.events = queue.Queue()
-        self.busy = False
+        self.job_busy = False
+        self.refresh_busy = False
         self.closed = False
         self.last_refresh = 0.0
+
+        self._engine_version = ""
+        self._engine_checked = 0.0
+        self._probing = set()
+        self._app_known = False
 
         self.window = tk.Toplevel(root)
         self.window.title("Docker Manager")
@@ -58,9 +194,23 @@ class DockerManagerWindow:
     def _load_projects(self):
         try:
             data = json.loads(self.db_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
         except (OSError, ValueError):
             return []
+
+        if not isinstance(data, list):
+            return []
+
+        projects = []
+        for item in data:
+            if (
+                isinstance(item, dict)
+                and item.get("compose_file")
+                and item.get("name")
+            ):
+                item.setdefault("url", "")
+                projects.append(item)
+
+        return projects
 
     def _save_projects(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,7 +238,9 @@ class DockerManagerWindow:
         compose_file = Path(filename).resolve()
 
         if not compose_file.is_file():
-            messagebox.showerror("Docker Manager", "File not found.")
+            messagebox.showerror(
+                "Docker Manager", "File not found.", parent=self.window
+            )
             return
 
         existing = next(
@@ -98,7 +250,9 @@ class DockerManagerWindow:
         )
 
         if existing:
-            messagebox.showinfo("Docker Manager", "Project already added.")
+            messagebox.showinfo(
+                "Docker Manager", "Project already added.", parent=self.window
+            )
             return
 
         project = {
@@ -112,6 +266,7 @@ class DockerManagerWindow:
         self._refresh_project_list()
 
         index = len(self.projects) - 1
+        self.project_list.selection_clear(0, tk.END)
         self.project_list.selection_set(index)
         self.project_list.see(index)
         self._select_project()
@@ -132,8 +287,10 @@ class DockerManagerWindow:
         self.projects.remove(project)
         self._save_projects()
         self.selected_project = None
+        self.selected_container = None
         self._refresh_project_list()
         self._clear_containers()
+        self.project_title.config(text="Select a project")
         self._set_status("Project removed from Toolkit.")
 
     def _edit_project(self):
@@ -145,7 +302,6 @@ class DockerManagerWindow:
         dialog.title("Project settings")
         dialog.geometry("520x190")
         dialog.transient(self.window)
-        dialog.grab_set()
 
         frame = ttk.Frame(dialog, padding=14)
         frame.pack(fill="both", expand=True)
@@ -185,6 +341,8 @@ class DockerManagerWindow:
 
         ttk.Button(frame, text="Save", command=save).pack(anchor="e")
 
+        _grab(dialog)
+
     def _project(self):
         selection = self.project_list.curselection()
         if not selection:
@@ -204,8 +362,7 @@ class DockerManagerWindow:
             self.project_list.insert(tk.END, project["name"])
 
         if current in self.projects:
-            index = self.projects.index(current)
-            self.project_list.selection_set(index)
+            self.project_list.selection_set(self.projects.index(current))
 
     # --------------------------------------------------
     # UI
@@ -222,9 +379,7 @@ class DockerManagerWindow:
             header, text="DOCKER MANAGER", font=("Arial", 15, "bold")
         ).pack(side="left")
 
-        self.connection_label = ttk.Label(
-            header, text="Checking Docker..."
-        )
+        self.connection_label = ttk.Label(header, text="Checking Docker...")
         self.connection_label.pack(side="right")
 
         sidebar = ttk.Frame(self.window, padding=(10, 0, 8, 10))
@@ -277,7 +432,8 @@ class DockerManagerWindow:
         self.stop_button.pack(side="left", padx=5)
 
         self.restart_button = ttk.Button(
-            actions, text="↻ Restart", command=lambda: self._run_compose("restart")
+            actions, text="↻ Restart",
+            command=lambda: self._run_compose("restart"),
         )
         self.restart_button.pack(side="left")
 
@@ -291,16 +447,16 @@ class DockerManagerWindow:
             show="tree headings",
             selectmode="browse",
         )
-        self.tree.heading("#0", text="Container / Service")
+        self.tree.heading("#0", text="Service")
         self.tree.heading("state", text="State")
         self.tree.heading("health", text="Health")
-        self.tree.heading("uptime", text="Started")
+        self.tree.heading("uptime", text="Uptime")
         self.tree.heading("exit", text="Exit code")
 
         self.tree.column("#0", width=220, minwidth=140)
         self.tree.column("state", width=105, anchor="center")
         self.tree.column("health", width=110, anchor="center")
-        self.tree.column("uptime", width=160, anchor="center")
+        self.tree.column("uptime", width=120, anchor="center")
         self.tree.column("exit", width=80, anchor="center")
 
         self.tree.grid(row=2, column=0, sticky="nsew")
@@ -309,19 +465,16 @@ class DockerManagerWindow:
         self.tree.tag_configure("healthy", foreground="#16803c")
         self.tree.tag_configure("warning", foreground="#b7791f")
         self.tree.tag_configure("error", foreground="#c53030")
+        self.tree.tag_configure("done", foreground="#718096")
 
         details = ttk.LabelFrame(main, text="Diagnostics", padding=8)
         details.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         details.columnconfigure(0, weight=1)
 
-        self.app_status = ttk.Label(
-            details, text="Application: not checked"
-        )
+        self.app_status = ttk.Label(details, text="Application: not checked")
         self.app_status.grid(row=0, column=0, sticky="w")
 
-        self.elapsed_label = ttk.Label(
-            details, text="Last refresh: —"
-        )
+        self.elapsed_label = ttk.Label(details, text="Last refresh: —")
         self.elapsed_label.grid(row=1, column=0, sticky="w", pady=(3, 0))
 
         detail_buttons = ttk.Frame(details)
@@ -346,9 +499,7 @@ class DockerManagerWindow:
     # --------------------------------------------------
 
     def _on_project_selected(self, _event=None):
-        project = self._project()
-        if project:
-            self.selected_project = project
+        if self._project():
             self._select_project()
 
     def _select_project(self):
@@ -359,6 +510,8 @@ class DockerManagerWindow:
         self.selected_project = project
         self.project_title.config(text=project["name"])
         self.selected_container = None
+        self._app_known = False
+        self.app_status.config(text="Application: not checked")
         self._clear_containers()
         self._refresh()
 
@@ -379,53 +532,59 @@ class DockerManagerWindow:
         if not compose_file.is_file():
             raise FileNotFoundError(f"Compose file not found: {compose_file}")
 
-        command = [
-            "docker", "compose",
-            "-f", str(compose_file),
-            *args,
-        ]
-
-        result = subprocess.run(
-            command,
-            cwd=str(compose_file.parent),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        result = _run(
+            ["docker", "compose", "-f", str(compose_file), *args],
             timeout=timeout or self.COMMAND_TIMEOUT,
-            creationflags=(
-                subprocess.CREATE_NO_WINDOW
-                if hasattr(subprocess, "CREATE_NO_WINDOW")
-                else 0
-            ),
+            cwd=str(compose_file.parent),
         )
 
         if result.returncode != 0:
             raise RuntimeError(
-                result.stderr.strip() or result.stdout.strip()
+                result.stderr.strip()
+                or result.stdout.strip()
                 or f"Docker command failed: {result.returncode}"
             )
 
         return result.stdout.strip()
 
+    def _engine_version_cached(self):
+        now = time.monotonic()
+
+        if (
+            self._engine_version
+            and now - self._engine_checked < self.ENGINE_CHECK_INTERVAL
+        ):
+            return self._engine_version
+
+        result = _run(
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            timeout=8,
+        )
+        version = result.stdout.strip()
+
+        if result.returncode != 0 or not version:
+            raise RuntimeError(
+                result.stderr.strip()
+                or "Docker Engine is not available. Is Docker Desktop running?"
+            )
+
+        self._engine_version = version
+        self._engine_checked = now
+        return version
+
     def _start_job(self, label, callback):
-        if self.busy:
+        if self.job_busy:
             self._set_status("Another Docker operation is in progress.")
             return
 
-        if not self._project():
+        project = self._project()
+        if not project:
             self._set_status("Select a Compose project first.")
             return
 
-        self.busy = True
+        self.job_busy = True
         self._set_status(f"{label}...")
-
-        for button in (
-            self.start_button, self.stop_button, self.restart_button
-        ):
-            button.state(["disabled"])
-
-        project = self._project()
+        self._set_buttons_enabled()
 
         def worker():
             try:
@@ -438,79 +597,53 @@ class DockerManagerWindow:
 
     def _run_compose(self, action):
         commands = {
-            "up": ("Starting", ("up", "-d")),
-            "stop": ("Stopping", ("stop",)),
-            "restart": ("Restarting", ("restart",)),
+            "up": ("Starting", ("up", "-d"), 1800),
+            "stop": ("Stopping", ("stop",), 300),
+            "restart": ("Restarting", ("restart",), 300),
         }
 
-        label, args = commands[action]
+        label, args, timeout = commands[action]
 
         def run(project):
-            return self._compose(project, *args)
+            return self._compose(project, *args, timeout=timeout)
 
         self._start_job(label, run)
 
     def _refresh(self):
-        if self.busy:
+        if self.refresh_busy:
             return
 
         project = self._project()
         if not project:
             return
 
-        self.busy = True
+        self.refresh_busy = True
 
         def worker():
             try:
-                docker_version = subprocess.run(
-                    ["docker", "version", "--format", "{{.Server.Version}}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=8,
-                    creationflags=(
-                        subprocess.CREATE_NO_WINDOW
-                        if hasattr(subprocess, "CREATE_NO_WINDOW")
-                        else 0
-                    ),
-                )
-
-                if docker_version.returncode != 0:
-                    raise RuntimeError(
-                        docker_version.stderr.strip()
-                        or "Docker Engine is not available."
-                    )
+                version = self._engine_version_cached()
 
                 raw = self._compose(project, "ps", "-a", "-q", timeout=15)
-                container_ids = list(dict.fromkeys(raw.splitlines()))
+                ids = list(dict.fromkeys(
+                    line.strip() for line in raw.splitlines() if line.strip()
+                ))
 
-                if container_ids:
-                    inspected = subprocess.run(
-                        ["docker", "inspect", *container_ids],
-                        capture_output=True,
-                        text=True,
-                        timeout=15,
-                        encoding="utf-8",
-                        errors="replace",
-                        creationflags=(
-                            subprocess.CREATE_NO_WINDOW
-                            if hasattr(subprocess, "CREATE_NO_WINDOW")
-                            else 0
-                        ),
-                    )
+                containers = []
+                if ids:
+                    inspected = _run(["docker", "inspect", *ids], timeout=15)
                     if inspected.returncode != 0:
-                        raise RuntimeError(inspected.stderr.strip())
+                        raise RuntimeError(
+                            inspected.stderr.strip() or "docker inspect failed"
+                        )
                     containers = json.loads(inspected.stdout)
-                else:
-                    containers = []
 
-                self.events.put((
-                    "refresh_done", project, containers,
-                    docker_version.stdout.strip(), None,
-                ))
+                self.events.put(
+                    ("refresh_done", project, containers, version, None)
+                )
             except Exception as error:
-                self.events.put((
-                    "refresh_done", project, [], "", str(error),
-                ))
+                self._engine_version = ""
+                self._engine_checked = 0.0
+                self.events.put(("refresh_done", project, [], "", str(error)))
             finally:
                 self.events.put(("refresh_unlock",))
 
@@ -526,12 +659,12 @@ class DockerManagerWindow:
                 kind = event[0]
 
                 if kind == "job_done":
-                    _, label, output, error = event
-                    self.busy = False
+                    _, label, _output, error = event
+                    self.job_busy = False
                     self._set_buttons_enabled()
 
                     if error:
-                        self._set_status(f"{label} failed: {error}")
+                        self._set_status(f"{label} failed: {_short(error)}")
                         messagebox.showerror(
                             "Docker Manager", error, parent=self.window
                         )
@@ -542,12 +675,14 @@ class DockerManagerWindow:
                 elif kind == "refresh_done":
                     _, project, containers, version, error = event
 
-                    if project != self.selected_project:
+                    if project is not self.selected_project:
                         continue
 
                     if error:
                         self.connection_label.config(text="Docker unavailable")
-                        self._set_status(error)
+                        self._clear_containers()
+                        self.selected_container = None
+                        self._set_status(_short(error))
                         self.app_status.config(text="Application: unavailable")
                         continue
 
@@ -555,122 +690,120 @@ class DockerManagerWindow:
                         text=f"Docker Engine {version}"
                     )
                     self._render_containers(containers)
-                    self._check_application(project)
+
+                    running = sum(
+                        1 for c in containers
+                        if (c.get("State") or {}).get("Status") == "running"
+                    )
+                    self._check_application(project, running)
+
                     self.last_refresh = time.monotonic()
                     self.elapsed_label.config(
-                        text="Last refresh: just now"
+                        text=f"Last refresh: {time.strftime('%H:%M:%S')}"
                     )
 
                 elif kind == "refresh_unlock":
-                    self.busy = False
-                    self._set_buttons_enabled()
-                
+                    self.refresh_busy = False
+
                 elif kind == "app_done":
                     _, project, result = event
-                    if project == self.selected_project:
+                    if project is self.selected_project:
+                        self._app_known = True
                         self.app_status.config(
-                            text=f"Application: {result}"
+                            text=f"Application: {result}  "
+                                 f"(checked {time.strftime('%H:%M:%S')})"
                         )
-                        
+
                 elif kind == "app_probe_unlock":
-                    self._http_probe_running = False
+                    self._probing.discard(event[1])
 
-                elif kind == "logs_done":
-                    _, output_window, logs = event
-                    if output_window.winfo_exists():
-                        for widget in output_window.winfo_children():
-                            if isinstance(widget, tk.Text):
-                                widget.configure(state="normal")
-                                widget.delete("1.0", "end")
-                                widget.insert("1.0", logs)
-                                widget.configure(state="disabled")
-                                break
-
+                elif kind == "call":
+                    event[1]()
 
         except queue.Empty:
             pass
 
-        self.window.after(150, self._process_events)
+        try:
+            self.window.after(150, self._process_events)
+        except tk.TclError:
+            pass
 
     def _set_buttons_enabled(self):
+        state = ["disabled"] if self.job_busy else ["!disabled"]
+
         for button in (
             self.start_button, self.stop_button, self.restart_button
         ):
-            button.state(["!disabled"])
+            button.state(state)
 
     def _schedule_refresh(self):
         if self.closed:
             return
 
-        if not self.busy and self._project():
+        if self._project():
             self._refresh()
 
-        self.window.after(self.POLL_INTERVAL, self._schedule_refresh)
+        try:
+            self.window.after(self.POLL_INTERVAL, self._schedule_refresh)
+        except tk.TclError:
+            pass
 
     # --------------------------------------------------
     # CONTAINER STATUS
     # --------------------------------------------------
 
-    @staticmethod
-    def _format_started(value):
-        if not value or value.startswith("0001-01-01"):
-            return "—"
-
-        try:
-            from datetime import datetime
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        except (ValueError, TypeError):
-            return value
-
     def _render_containers(self, containers):
-        previous = self.selected_container
-        self._clear_containers()
+        rows = sorted(
+            (describe_container(c) for c in containers),
+            key=lambda row: row["service"],
+        )
 
-        for container in containers:
-            state = container.get("State", {})
-            state_name = state.get("Status", "unknown")
-            health = state.get("Health", {}).get("Status", "not configured")
-            name = container.get("Name", "").lstrip("/")
-            exit_code = state.get("ExitCode", "")
-            started = self._format_started(state.get("StartedAt"))
+        wanted = {row["id"] for row in rows}
 
-            if state_name == "running" and health in (
-                "healthy", "not configured"
-            ):
-                tag = "healthy"
-            elif state_name in ("exited", "dead") or health == "unhealthy":
-                tag = "error"
-            else:
-                tag = "warning"
+        for stale in set(self.tree.get_children()) - wanted:
+            self.tree.delete(stale)
 
-            self.tree.insert(
-                "",
-                "end",
-                iid=container.get("Id", name),
-                text=name,
-                values=(state_name, health, started, exit_code),
-                tags=(tag,),
+        for index, row in enumerate(rows):
+            values = (
+                row["state"], row["health"], row["uptime"], row["exit_code"]
             )
 
-        if previous and self.tree.exists(previous):
-            self.tree.selection_set(previous)
-            self.selected_container = previous
-        else:
+            if self.tree.exists(row["id"]):
+                self.tree.item(
+                    row["id"], text=row["service"],
+                    values=values, tags=(row["tag"],),
+                )
+                self.tree.move(row["id"], "", index)
+            else:
+                self.tree.insert(
+                    "", index, iid=row["id"], text=row["service"],
+                    values=values, tags=(row["tag"],),
+                )
+
+        if self.selected_container and not self.tree.exists(
+            self.selected_container
+        ):
             self.selected_container = None
 
-        if not containers:
+        if not rows:
             self._set_status(
                 "No containers found. The project may not have been started."
             )
-        else:
-            self._set_status(f"Containers found: {len(containers)}")
+            return
+
+        running = sum(1 for row in rows if row["state"] == "running")
+        problems = sum(1 for row in rows if row["tag"] == "error")
+
+        text = f"Containers: {len(rows)} · running: {running}"
+        if problems:
+            text += f" · problems: {problems}"
+        self._set_status(text)
 
     # --------------------------------------------------
     # APPLICATION READINESS
     # --------------------------------------------------
 
-    def _check_application(self, project):
+    def _check_application(self, project, running):
         url = project.get("url", "").strip()
 
         if not url:
@@ -679,7 +812,22 @@ class DockerManagerWindow:
             )
             return
 
-        self.app_status.config(text=f"Application: checking {url} ...")
+        if not running:
+            self._app_known = False
+            self.app_status.config(
+                text="Application: containers are not running."
+            )
+            return
+
+        key = project["compose_file"]
+
+        if key in self._probing:
+            return
+
+        self._probing.add(key)
+        
+        if not self._app_known:
+            self.app_status.config(text=f"Application: checking {url} ...")
 
         def worker():
             started = time.monotonic()
@@ -696,32 +844,32 @@ class DockerManagerWindow:
                 result = f"HTTP {error.code} · endpoint responded"
             except Exception as error:
                 result = f"Not ready · {type(error).__name__}: {error}"
+            finally:
+                self.events.put(("app_probe_unlock", key))
 
             self.events.put(("app_done", project, result))
 
-        # Prevent concurrent HTTP probes for the same project.
-        if getattr(self, "_http_probe_running", False):
-            return
-
-        self._http_probe_running = True
-
-        def guarded_worker():
-            try:
-                worker()
-            finally:
-                self.events.put(("app_probe_unlock",))
-
-        threading.Thread(target=guarded_worker, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
     # --------------------------------------------------
     # LOGS / BROWSER
     # --------------------------------------------------
 
+    @staticmethod
+    def _set_text(widget, content):
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        widget.insert("1.0", content)
+        widget.configure(state="disabled")
+
     def _show_logs(self):
         container_id = self.selected_container
-        project = self._project()
 
-        if not project or not container_id:
+        if (
+            not self._project()
+            or not container_id
+            or not self.tree.exists(container_id)
+        ):
             messagebox.showinfo(
                 "Docker Manager",
                 "Select a container first.",
@@ -729,47 +877,71 @@ class DockerManagerWindow:
             )
             return
 
-        output_window = tk.Toplevel(self.window)
-        output_window.title("Container logs")
-        output_window.geometry("850x550")
+        title = self.tree.item(container_id, "text")
 
-        text_widget = tk.Text(
-            output_window, wrap="none", font=("Consolas", 9)
+        win = tk.Toplevel(self.window)
+        win.title(f"Logs — {title}")
+        win.geometry("900x560")
+
+        top = ttk.Frame(win, padding=(8, 6))
+        top.pack(fill="x")
+
+        body = ttk.Frame(win)
+        body.pack(fill="both", expand=True)
+        body.rowconfigure(0, weight=1)
+        body.columnconfigure(0, weight=1)
+
+        text = tk.Text(
+            body, wrap="none", font=("Consolas", 9), state="disabled"
         )
-        text_widget.pack(fill="both", expand=True)
+        ybar = ttk.Scrollbar(body, orient="vertical", command=text.yview)
+        xbar = ttk.Scrollbar(body, orient="horizontal", command=text.xview)
+        text.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
 
-        text_widget.insert("1.0", "Loading logs...")
-        text_widget.configure(state="disabled")
+        text.grid(row=0, column=0, sticky="nsew")
+        ybar.grid(row=0, column=1, sticky="ns")
+        xbar.grid(row=1, column=0, sticky="ew")
 
-        def worker():
-            try:
-                result = subprocess.run(
-                    ["docker", "logs", "--tail", "300", container_id],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=(
-                        subprocess.CREATE_NO_WINDOW
-                        if hasattr(subprocess, "CREATE_NO_WINDOW")
-                        else 0
-                    ),
-                )
-                logs = result.stdout + (
-                    "\n" + result.stderr if result.stderr else ""
-                )
-                if result.returncode:
-                    raise RuntimeError(logs.strip() or "Unable to read logs.")
-                self.events.put(("logs_done", output_window, logs))
-            except Exception as error:
-                self.events.put(("logs_done", output_window, str(error)))
+        loading = {"on": False}
 
-        threading.Thread(target=worker, daemon=True).start()
+        def finish(logs):
+            loading["on"] = False
+            if not text.winfo_exists():
+                return
+            self._set_text(text, logs)
+            text.see("end")      # the most fresh rows below
+
+        def load():
+            if loading["on"]:
+                return
+            loading["on"] = True
+            self._set_text(text, "Loading logs...")
+
+            def worker():
+                try:
+                    result = _run(
+                        ["docker", "logs", "--tail", "300", container_id],
+                        timeout=15,
+                        merge_stderr=True,   # stdout & stderr
+                    )
+                    logs = result.stdout
+                    if result.returncode:
+                        logs = logs.strip() or "Unable to read logs."
+                    elif not logs.strip():
+                        logs = "(no log output)"
+                except Exception as error:
+                    logs = str(error)
+
+                self.events.put(("call", lambda: finish(logs)))
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        ttk.Button(top, text="Refresh", command=load).pack(side="left")
+        ttk.Label(top, text="last 300 lines").pack(side="left", padx=8)
+
+        load()
 
     def _open_web_ui(self):
-        import webbrowser
-
         project = self._project()
         if not project:
             return
@@ -797,6 +969,20 @@ class DockerManagerWindow:
         self.window.destroy()
 
 
+_instance = None
+
+
 def open_docker_manager(root, base_dir, settings=None):
-    DockerManagerWindow(root, base_dir, settings)
-    
+    global _instance
+
+    if _instance is not None and not _instance.closed:
+        try:
+            _instance.window.deiconify()
+            _instance.window.lift()
+            _instance.window.focus_force()
+            return _instance
+        except tk.TclError:
+            pass
+
+    _instance = DockerManagerWindow(root, base_dir, settings)
+    return _instance
