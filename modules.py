@@ -44,6 +44,14 @@ def _settings(ctx):
     from interface.open_settings_window import open_settings
     open_settings(ctx.root, ctx.base_dir, ctx.settings)
 
+def _docker_manager(ctx):
+    from interface.docker_manager_window import open_docker_manager
+
+    open_docker_manager(
+        ctx.root,
+        ctx.base_dir,
+        ctx.settings,
+    )
 
 def build_modules() -> list[Module]:
     return [
@@ -57,6 +65,7 @@ def build_modules() -> list[Module]:
                tray=True, keywords=("notes", "заметки")),
         Module("quick_commands", "Quick Commands", _quick_commands,
                tray=True, keywords=("git", "cmd", "команды")),
+        Module("docker_manager", "Docker Manager", _docker_manager, tray=True, keywords=("docker", "compose", "containers", "контейнеры"),),
         Module("chess", "Chess", _chess, keywords=("шахматы", "game")),
         Module("minesweeper", "Minesweeper", _minesweeper, keywords=("сапёр", "сапер", "game")),
         Module("tic_tac_toe", "Tic-Tac-Toe", _tic_tac_toe, keywords=("крестики", "game")),
