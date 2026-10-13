@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
+from scripts.docker_ports import check_ports, conflicts, summarize
+
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -217,6 +219,8 @@ class DockerManagerWindow:
         self._engine_checked = 0.0
         self._probing = set()
         self._app_known = False
+        self._preflight_busy = False
+        self.port_report = None
 
         self.window = tk.Toplevel(root)
         self.window.title("Docker Manager")
@@ -531,12 +535,25 @@ class DockerManagerWindow:
             row=2, column=0, columnspan=2, sticky="w", pady=(3, 0)
         )
 
+        self.ports_label = ttk.Label(
+            details, text="Ports: not checked", wraplength=820,
+            foreground=self.PORT_COLORS["info"],
+        )
+        self.ports_label.grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(3, 0)
+        )
+
         detail_buttons = ttk.Frame(details)
         detail_buttons.grid(row=0, column=1, rowspan=2, padx=(8, 0))
 
         ttk.Button(
-            detail_buttons, text="Container logs", command=self._show_logs
+            detail_buttons, text="Check ports",
+            command=lambda: self._check_ports(show_details=True),
         ).pack(side="left")
+
+        ttk.Button(
+            detail_buttons, text="Container logs", command=self._show_logs
+        ).pack(side="left", padx=(5, 0))
 
         ttk.Button(
             detail_buttons, text="Open web UI", command=self._open_web_ui
@@ -568,6 +585,8 @@ class DockerManagerWindow:
         self.app_status.config(text="Application: not checked")
         self._clear_containers()
         self._refresh()
+        self._set_ports_label("Ports: checking...", "info")
+        self._check_ports()
 
     def _clear_containers(self):
         for item in self.tree.get_children():
@@ -659,7 +678,225 @@ class DockerManagerWindow:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    # --------------------------------------------------
+    # PORT PREFLIGHT
+    # --------------------------------------------------
+
+    PORT_COLORS = {
+        "ok": "#16803c",
+        "warn": "#b7791f",
+        "error": "#c53030",
+        "info": "#555555",
+    }
+
+    STATE_TEXT = {
+        "free": "free",
+        "mine": "this project",
+        "busy": "BUSY",
+        "reserved": "RESERVED",
+        "duplicate": "DUPLICATE",
+        "unknown": "unknown",
+    }
+
+    def _set_ports_label(self, text, level="info"):
+        self.ports_label.config(text=text, foreground=self.PORT_COLORS[level])
+
+    def _check_ports(self, show_details=False, then=None):
+        project = self._project()
+        if not project:
+            return
+
+        self._set_ports_label("Ports: checking...", "info")
+
+        def worker():
+            try:
+                report, error = check_ports(project["compose_file"]), None
+            except Exception as exc:
+                report, error = None, str(exc)
+
+            self.events.put((
+                "call",
+                lambda: self._ports_done(
+                    project, report, error, show_details, then
+                ),
+            ))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _ports_done(self, project, report, error, show_details, then):
+        if project is self.selected_project:
+            if error:
+                self.port_report = None
+                self._set_ports_label(
+                    f"Ports: cannot check \u00b7 {_short(error)}", "warn"
+                )
+            else:
+                self.port_report = report
+                level, text = summarize(report)
+                self._set_ports_label(text, level)
+
+                if show_details:
+                    self._show_ports_dialog(report)
+
+        if then:
+            then(report, error)
+
+    def _show_ports_dialog(self, report):
+        win = tk.Toplevel(self.window)
+        win.title(f"Ports \u2014 {report.project or 'project'}")
+        win.geometry("820x420")
+        win.minsize(640, 300)
+        win.columnconfigure(0, weight=1)
+        win.rowconfigure(0, weight=1)
+
+        box = ttk.Frame(win, padding=(10, 10, 10, 0))
+        box.grid(row=0, column=0, sticky="nsew")
+        box.columnconfigure(0, weight=1)
+        box.rowconfigure(0, weight=1)
+
+        tree = ttk.Treeview(
+            box,
+            columns=("port", "proto", "bind", "service", "status", "owner"),
+            show="headings",
+        )
+        for column, title, width in (
+            ("port", "Host port", 80),
+            ("proto", "Proto", 55),
+            ("bind", "Bind", 100),
+            ("service", "Service", 140),
+            ("status", "Status", 100),
+            ("owner", "Used by", 330),
+        ):
+            tree.heading(column, text=title)
+            tree.column(column, width=width, anchor="w")
+
+        tree.tag_configure("free", foreground="#16803c")
+        tree.tag_configure("mine", foreground="#718096")
+        tree.tag_configure("busy", foreground="#c53030")
+        tree.tag_configure("duplicate", foreground="#c53030")
+        tree.tag_configure("reserved", foreground="#b7791f")
+        tree.tag_configure("unknown", foreground="#b7791f")
+
+        for status in report.statuses:
+            m = status.mapping
+            tree.insert(
+                "", "end",
+                values=(
+                    m.port, m.protocol, m.host_ip or "all", m.service,
+                    self.STATE_TEXT.get(status.state, status.state),
+                    status.owner,
+                ),
+                tags=(status.state,),
+            )
+
+        ybar = ttk.Scrollbar(box, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=ybar.set)
+        tree.grid(row=0, column=0, sticky="nsew")
+        ybar.grid(row=0, column=1, sticky="ns")
+
+        states = {s.state for s in report.statuses}
+        hints = []
+
+        if "busy" in states:
+            hints.append(
+                "Stop the program or container that holds the port, or change "
+                "the host port in the compose file (the left number in "
+                "'ports:', for example '8081:8080')."
+            )
+        if "reserved" in states:
+            hints.append(
+                "Windows reserves some port ranges (Hyper-V / WSL / Docker). "
+                "Choose a port outside them; restarting the NAT service often "
+                "releases them (as administrator: net stop winnat && "
+                "net start winnat)."
+            )
+        if "duplicate" in states:
+            hints.append(
+                "Two services of this project publish the same host port. "
+                "Change one of them."
+            )
+        if not report.statuses:
+            hints.append("This project publishes no fixed host ports.")
+        elif not hints:
+            hints.append("All checked ports are available.")
+
+        hints.extend(report.notes)
+
+        ttk.Label(
+            win, text="\n\n".join(hints), wraplength=780, justify="left",
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=10)
+
+        buttons = ttk.Frame(win, padding=(10, 0, 10, 10))
+        buttons.grid(row=2, column=0, sticky="e")
+
+        def recheck():
+            win.destroy()
+            self._check_ports(show_details=True)
+
+        ttk.Button(buttons, text="Check again", command=recheck).pack(side="left")
+        ttk.Button(buttons, text="Close", command=win.destroy).pack(
+            side="left", padx=(6, 0)
+        )
+
+        win.bind("<Escape>", lambda e: win.destroy())
+
     def _run_compose(self, action):
+        if action != "up":
+            self._launch_compose(action)
+            return
+
+        if self.job_busy:
+            self._set_status("Another Docker operation is in progress.")
+            return
+
+        if self._preflight_busy:
+            return
+
+        project = self._project()
+        if not project:
+            self._set_status("Select a Compose project first.")
+            return
+
+        self._preflight_busy = True
+        self.start_button.state(["disabled"])
+        self._set_status("Checking ports...")
+
+        def after_check(report, error):
+            self._preflight_busy = False
+            self._set_buttons_enabled()
+
+            if project is not self._project():
+                self._set_status("Selection changed, start cancelled.")
+                return
+
+            bad = conflicts(report) if report else []
+
+            if bad:
+                lines = [
+                    f"  {s.mapping.port}/{s.mapping.protocol}  "
+                    f"({s.mapping.service}): {s.owner}"
+                    for s in bad[:8]
+                ]
+                more = (
+                    f"\n  ... and {len(bad) - 8} more" if len(bad) > 8 else ""
+                )
+
+                if not messagebox.askyesno(
+                    "Ports are not available",
+                    "These host ports cannot be used:\n\n"
+                    + "\n".join(lines) + more
+                    + "\n\nDocker will fail to publish them. Start anyway?",
+                    icon="warning",
+                    parent=self.window,
+                ):
+                    self._set_status("Start cancelled: ports are busy.")
+                    return
+
+            self._launch_compose("up")
+
+        self._check_ports(then=after_check)
+
+    def _launch_compose(self, action):
         commands = {
             "up": ("Starting", ("up", "-d"), 1800),
             "stop": ("Stopping", ("stop",), 300),
@@ -735,6 +972,7 @@ class DockerManagerWindow:
                     else:
                         self._set_status(f"{label} completed.")
                         self._refresh()
+                        self._check_ports()
 
                 elif kind == "refresh_done":
                     _, project, containers, version, error = event
