@@ -53,6 +53,10 @@ def _docker_manager(ctx):
         ctx.settings,
     )
 
+def _port_scanner(ctx):
+    from interface.port_scanner_window import open_port_scanner
+    open_port_scanner(ctx.root, ctx.base_dir, ctx.settings)
+
 def build_modules() -> list[Module]:
     return [
         Module("search", "Search / Launcher", lambda c: c.launcher.toggle(),
@@ -65,7 +69,10 @@ def build_modules() -> list[Module]:
                tray=True, keywords=("notes", "заметки")),
         Module("quick_commands", "Quick Commands", _quick_commands,
                tray=True, keywords=("git", "cmd", "команды")),
-        Module("docker_manager", "Docker Manager", _docker_manager, tray=True, keywords=("docker", "compose", "containers", "контейнеры"),),
+        Module("docker_manager", "Docker Manager", _docker_manager, 
+               tray=True, keywords=("docker", "compose", "containers", "контейнеры"),),
+        Module("port_scanner", "Port Scanner", _port_scanner, 
+               tray=True, keywords=("port", "scan", "network", "порты", "сеть"), ),
         Module("chess", "Chess", _chess, keywords=("шахматы", "game")),
         Module("minesweeper", "Minesweeper", _minesweeper, keywords=("сапёр", "сапер", "game")),
         Module("tic_tac_toe", "Tic-Tac-Toe", _tic_tac_toe, keywords=("крестики", "game")),
