@@ -528,20 +528,7 @@ def setup_settings(report: Report, workdir: Path | None, ask: bool) -> dict | No
         return None
 
     dirs = get_dirs(BASE_DIR, settings)
-    wanted = [dirs["active"], dirs["configs"]] + [
-        dirs[k] for k in ("tests", "complete", "backup") if dirs[k] is not None
-    ]
-    before = {p for p in wanted if p.exists()}
-
     problems = ensure_structure(BASE_DIR, settings)
-
-    for path in wanted:
-        if path not in before and path.exists():
-            good(f"created {path}")
-            report.changes.append(f"created folder {path}")
-
-    if not [p for p in wanted if p not in before]:
-        good("folders")
 
     note(f"working folder: {dirs['working']}")
     note(f"projects folder: {dirs['active']}")
