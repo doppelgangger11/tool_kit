@@ -56,6 +56,20 @@ def _docker_manager(ctx):
 def _port_scanner(ctx):
     from interface.port_scanner_window import open_port_scanner
     open_port_scanner(ctx.root, ctx.base_dir, ctx.settings)
+    
+def _complete_task(ctx):
+    from interface.complete_task_window import open_complete_task
+    open_complete_task(ctx.root, ctx.base_dir, ctx.settings)
+    
+# def _open_hotkeys(ctx):
+#     from interface.hotkeys_window import open_hotkeys
+#     from scripts.hotkeys import HotkeyService
+#     # open_hotkeys(ctx.root, ctx.base_dir, ctx.settings, HotkeyService)
+#     open_hotkeys(ctx.root, ctx.base_dir, ctx.settings)
+
+def _open_time_tracker(ctx):
+    from interface.time_tracker_window import open_time_tracker
+    open_time_tracker(ctx.root, ctx.base_dir, ctx.settings)
 
 def build_modules() -> list[Module]:
     return [
@@ -73,6 +87,12 @@ def build_modules() -> list[Module]:
                tray=True, keywords=("docker", "compose", "containers", "контейнеры"),),
         Module("port_scanner", "Port Scanner", _port_scanner, 
                tray=True, keywords=("port", "scan", "network", "порты", "сеть"), ),
+        Module("complete_task", "Complete the Project", _complete_task,
+               tray=True, keywords=("complete", "завершить", "project", "task")),
+        # Module("hotkeys", "Hotkeys", _open_hotkeys,
+        #        tray=True, keywords=("hotkeys", "корячие", "клавиши")),
+        Module("time_tracker", "Time Tracker", _open_time_tracker,
+               tray=True, keywords=("tracker", "time", "трэкер")),
         Module("chess", "Chess", _chess, keywords=("шахматы", "game")),
         Module("minesweeper", "Minesweeper", _minesweeper, keywords=("сапёр", "сапер", "game")),
         Module("tic_tac_toe", "Tic-Tac-Toe", _tic_tac_toe, keywords=("крестики", "game")),
