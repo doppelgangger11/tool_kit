@@ -346,3 +346,37 @@ class HotkeyService:
         if self._manager is not None:
             self._manager.stop()
             self._manager = None
+
+
+# ---------------------------------------------------------
+# Wiring helpers for a list of modules (modules.py)
+# ---------------------------------------------------------
+
+def module_key(module) -> str:
+    for attr in ("key", "id", "name", "slug"):
+        value = getattr(module, attr, None)
+        if isinstance(value, str) and value:
+            return value
+
+    title = str(getattr(module, "title", "module"))
+    return re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") or "module"
+
+
+def build_actions(modules, ctx, extras: dict | None = None) -> dict:
+    actions = {
+        module_key(m): (m.title, (lambda m=m: m.run(ctx)))
+        for m in modules
+    }
+
+    if extras:
+        actions.update(extras)
+
+    return actions
+
+
+def apply_defaults(settings: dict, actions: dict, defaults: dict) -> None:
+    section = settings.setdefault("HOTKEYS", {})
+
+    for key, combo in defaults.items():
+        if key in actions and key not in section:
+            section[key] = combo

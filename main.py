@@ -5,9 +5,11 @@ from pathlib import Path
 
 from scripts.daemon import Dispatcher, SingleInstance
 from scripts.hotkey import GlobalHotkey
+from scripts.hotkeys import HotkeyService, apply_defaults, build_actions
 from scripts.note_manager import NotesManager
 from scripts.registry import AppContext
 from scripts.settings_manager import read_settings, ensure_structure
+from scripts.time_tracker import get_tracker
 
 from interface.tray import Tray
 from interface.launcher_window import Launcher
@@ -62,11 +64,26 @@ ctx.launcher = Launcher(ctx)
 # The main window, tray menu and launcher are all built from one module list (modules.py)
 MODULES = build_modules()
 
+
+def toggle_tracker():
+    """Start/stop the timer on the last used project (hotkey and tray menu)."""
+    try:
+        message = get_tracker(BASE_DIR).toggle()
+    except ValueError as error:
+        message = str(error)
+
+    try:
+        ctx.tray.icon.notify(message, "Time Tracker")
+    except Exception:
+        print(f"[Tracker] {message}")
+
+
 tray_actions = [
     (module.title, lambda module=module: module.run(ctx))
     for module in MODULES
     if module.tray
 ]
+tray_actions.append(("Start / stop timer", toggle_tracker))
 
 tray = Tray(root, dispatcher, actions=tray_actions)
 ctx.tray = tray
@@ -82,6 +99,35 @@ hotkey_spec = BASE_SETTINGS.get("BASE", {}).get("hotkey", "ctrl+space")
 if hotkey_spec and str(hotkey_spec).lower() not in ("off", "none", "false"):
     if not hotkey.start(str(hotkey_spec), lambda: dispatcher.call(ctx.launcher.toggle)):
         problems.append(f"Hotkey: {hotkey.error}")
+
+# ---------------------------------------------------------
+# Global hotkeys for modules (set them in the "Hotkeys" window)
+# ---------------------------------------------------------
+
+# Default combinations by module key from modules.py.
+# A key that does not exist there is simply ignored: adjust to your keys.
+HOTKEY_DEFAULTS = {
+    "notes": "Ctrl+Alt+N",
+    "activation": "Ctrl+Alt+A",
+    "time_tracker": "Ctrl+Alt+T",
+}
+
+hotkey_actions = build_actions(
+    MODULES,
+    ctx,
+    extras={
+        "tracker_toggle": ("Start / stop timer", toggle_tracker),
+        "main_window": ("Show Toolkit", tray.show_window),
+    },
+)
+apply_defaults(BASE_SETTINGS, hotkey_actions, HOTKEY_DEFAULTS)
+
+hotkeys = HotkeyService(dispatcher.call, hotkey_actions, BASE_SETTINGS)
+ctx.hotkeys = hotkeys
+
+for key, (state, message) in hotkeys.apply().items():
+    if state == "error":
+        problems.append(f"Hotkey '{hotkey_actions[key][0]}': {message}")
 
 # ---------------------------------------------------------
 # UI
@@ -131,6 +177,7 @@ print("[Toolkit] Running. Control it from the tray icon, Ctrl+C here to exit.")
 try:
     root.mainloop()
 finally:
+    hotkeys.stop()
     hotkey.stop()
     tray.stop()
     instance.close()

@@ -17,7 +17,6 @@ TEMPLATES_DIR_NAME = "templates"
 DEFAULTS: dict[str, dict[str, Any]] = {
     "BASE": {
         "log": False,
-        "hotkey": "ctrl+space",   # launcher; "off" - disable
     },
     "DIRS": {
         "working_dir": "./workspace",   # relative to the folder with main.py
@@ -28,8 +27,6 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "ARCHITECTURE": {
         "activation_dir": "active",
         "active": "./active",           # inside working_dir
-        "tests": "./tests",
-        "complete": "./complete",
     },
 }
 
