@@ -30,6 +30,11 @@ def _chess(ctx):
     main()
 
 
+def _checkers(ctx):
+    from games.checkers.checkers_interface import main
+    main()
+
+
 def _minesweeper(ctx):
     from games.minesweeper.main import main
     main()
@@ -86,6 +91,7 @@ def build_modules() -> list[Module]:
         Module("time_tracker", "Time Tracker", _open_time_tracker,
                tray=True, keywords=("tracker", "time", "трэкер")),
         Module("chess", "Chess", _chess, keywords=("шахматы", "game")),
+        Module("checkers", "Checkers", _checkers, keywords=("шашки", "draughts", "game")),
         Module("minesweeper", "Minesweeper", _minesweeper, keywords=("сапёр", "сапер", "game")),
         Module("tic_tac_toe", "Tic-Tac-Toe", _tic_tac_toe, keywords=("крестики", "game")),
         Module("settings", "Settings", _settings, keywords=("настройки", "config")),
