@@ -1,24 +1,20 @@
-"""
-Generates the PNG assets for the checkers game.
 
-Usage (from the project root):
+"""Generate minimalist, perspective-style checkers assets.
 
+Usage:
     python -m games.checkers.generate_assets
     python -m games.checkers.generate_assets --size 64 --preview
     python -m games.checkers.generate_assets --out some/folder
 
-Creates four transparent PNG files in games/checkers/assets/:
+Creates:
+    Piece=Man, Side=White.png
+    Piece=Man, Side=Black.png
+    Piece=King, Side=White.png
+    Piece=King, Side=Black.png
 
-    Piece=Man, Side=White.png      Piece=Man, Side=Black.png
-    Piece=King, Side=White.png     Piece=King, Side=Black.png
-
-(the same naming scheme as the chess assets). The size has to match
-SQUARE_SIZE in checkers_interface.py (55 by default); if you change one,
-generate the files again with the other.
-
-Requires Pillow (already a dependency of the project).
-Everything is drawn 4x larger and scaled down, so the edges are smooth.
+Requires Pillow.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,197 +36,294 @@ PREVIEW_DARK = (143, 139, 128)
 
 THEME = {
     "White": {
-        "edge": (90, 87, 80),
-        "face_dark": (206, 201, 188),
-        "face_light": (255, 253, 247),
-        "groove": (176, 170, 156),
-        "glow": 70,
+        "edge": (77, 73, 65),
+        "face": (246, 243, 233),
+        "side": (207, 202, 189),
+        "side_light": (224, 219, 207),
+        "ring": (177, 171, 158),
+        "shadow_alpha": 65,
     },
     "Black": {
-        "edge": (22, 20, 19),
-        "face_dark": (44, 41, 38),
-        "face_light": (104, 99, 92),
-        "groove": (24, 22, 21),
-        "glow": 45,
+        "edge": (25, 24, 23),
+        "face": (65, 62, 58),
+        "side": (43, 41, 39),
+        "side_light": (54, 51, 48),
+        "ring": (91, 86, 79),
+        "shadow_alpha": 85,
     },
 }
 
-GOLD = (212, 170, 40)
-GOLD_DARK = (122, 92, 14)
+GOLD = (232, 181, 52)
+GOLD_LIGHT = (250, 210, 93)
+GOLD_EDGE = (119, 83, 20)
 
 
-# ---------------------------------------------------------
-# helpers
-# ---------------------------------------------------------
-
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
-
-
-def _disc(draw, cx, cy, radius, fill=None, outline=None, width=1):
+def _ellipse(
+    draw,
+    cx: float,
+    cy: float,
+    rx: float,
+    ry: float,
+    fill=None,
+    outline=None,
+    width: int = 1,
+):
     draw.ellipse(
-        (cx - radius, cy - radius, cx + radius, cy + radius),
+        (cx - rx, cy - ry, cx + rx, cy + ry),
         fill=fill,
         outline=outline,
         width=width,
     )
 
 
-# ---------------------------------------------------------
-# drawing (everything at SCALE times the final size)
-# ---------------------------------------------------------
+def _draw_cylinder(
+    image,
+    cx,
+    top_y,
+    rx,
+    ry,
+    depth,
+    colors,
+    line_width,
+):
+    draw = ImageDraw.Draw(image)
 
-def _draw_man(big: int, side: str) -> Image.Image:
-    colors = THEME[side]
+    left = cx - rx
+    right = cx + rx
+    bottom_y = top_y + depth
 
-    cx = cy = big / 2
-    radius = big * 0.40
+    # Body: short side wall between two elliptical surfaces.
+    draw.rectangle(
+        (left, top_y, right, bottom_y),
+        fill=colors["side"],
+    )
 
-    image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    # Front-facing half of the lower rim.
+    draw.pieslice(
+        (left, bottom_y - ry, right, bottom_y + ry),
+        start=0,
+        end=180,
+        fill=colors["edge"],
+    )
 
-    # soft drop shadow
-    shadow = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    # Restore the flat side wall so the bottom does not look like a box.
+    draw.rectangle(
+        (left, top_y, right, bottom_y),
+        fill=colors["side"],
+    )
 
-    _disc(
-        ImageDraw.Draw(shadow),
+    # Top rim, drawn last to create a clean silhouette.
+    _ellipse(
+        draw,
         cx,
-        cy + big * 0.035,
-        radius,
-        fill=(0, 0, 0, 90),
+        top_y,
+        rx,
+        ry,
+        fill=colors["edge"],
     )
 
-    image.alpha_composite(
-        shadow.filter(ImageFilter.GaussianBlur(big * 0.018))
+    _ellipse(
+        draw,
+        cx,
+        top_y,
+        rx - line_width,
+        ry - line_width,
+        fill=colors["face"],
+        outline=colors["ring"],
+        width=line_width,
     )
 
-    draw = ImageDraw.Draw(image)
-
-    # outer edge
-    _disc(draw, cx, cy, radius, fill=colors["edge"] + (255,))
-
-    # face with a radial gradient, the light comes from the top left
-    face_radius = radius * 0.93
-    steps = 40
-
-    for i in range(steps):
-        t = i / (steps - 1)
-
-        _disc(
-            draw,
-            cx - face_radius * 0.18 * t,
-            cy - face_radius * 0.18 * t,
-            face_radius * (1 - t * 0.92),
-            fill=_lerp(colors["face_dark"], colors["face_light"], t) + (255,),
-        )
-
-    # two grooves, like on real draughts
-    for factor in (0.74, 0.50):
-        _disc(
-            draw,
-            cx,
-            cy,
-            radius * factor,
-            outline=colors["groove"] + (255,),
-            width=max(2, int(big * 0.016)),
-        )
-
-    # small specular highlight
-    glow = Image.new("RGBA", (big, big), (0, 0, 0, 0))
-
-    ImageDraw.Draw(glow).ellipse(
-        (
-            cx - radius * 0.62,
-            cy - radius * 0.72,
-            cx - radius * 0.12,
-            cy - radius * 0.38,
-        ),
-        fill=(255, 255, 255, colors["glow"]),
-    )
-
-    image.alpha_composite(
-        glow.filter(ImageFilter.GaussianBlur(big * 0.02))
-    )
-
-    return image
 
 
-def _draw_crown(image: Image.Image) -> None:
-    """Draws a golden crown in the middle of the image (in place)."""
-    big = image.size[0]
-    draw = ImageDraw.Draw(image)
 
-    cx = cy = big / 2
-
-    width = big * 0.34
-    height = big * 0.24
+def _draw_crown(
+    draw,
+    cx: float,
+    cy: float,
+    width: float,
+    height: float,
+    line_width: int,
+):
+    """Draw a compact gold crown centered on the top surface."""
 
     left = cx - width / 2
     right = cx + width / 2
     top = cy - height / 2
     bottom = cy + height / 2
 
-    peak = top - height * 0.12
-
     points = [
         (left, bottom),
-        (left, top),
-        (cx - width * 0.25, cy - height * 0.02),
-        (cx, peak),
-        (cx + width * 0.25, cy - height * 0.02),
-        (right, top),
+        (left - width * 0.04, top + height * 0.08),
+        (cx - width * 0.25, cy + height * 0.04),
+        (cx, top - height * 0.17),
+        (cx + width * 0.25, cy + height * 0.04),
+        (right + width * 0.04, top + height * 0.08),
         (right, bottom),
     ]
 
-    gold = GOLD + (255,)
-    dark = GOLD_DARK + (255,)
-    line = max(2, int(big * 0.014))
-
-    draw.polygon(points, fill=gold, outline=dark, width=line)
-
-    # band at the bottom of the crown
-    draw.rectangle(
-        (left, bottom - height * 0.22, right, bottom),
-        fill=dark,
+    draw.polygon(
+        points,
+        fill=GOLD,
+        outline=GOLD_EDGE,
+        width=line_width,
     )
 
-    # pearls on the three peaks
-    for px, py in ((left, top), (cx, peak), (right, top)):
-        _disc(draw, px, py, big * 0.027, fill=gold, outline=dark, width=line)
+    # Slightly lighter upper edge.
+    draw.line(
+        points[1:6],
+        fill=GOLD_LIGHT,
+        width=line_width,
+    )
+
+    # Crown band.
+    draw.line(
+        [
+            (left + width * 0.02, bottom - height * 0.16),
+            (right - width * 0.02, bottom - height * 0.16),
+        ],
+        fill=GOLD_EDGE,
+        width=line_width,
+    )
+
+    # Three simple round tips.
+    for px, py in (
+        (points[1][0], points[1][1]),
+        (points[3][0], points[3][1]),
+        (points[5][0], points[5][1]),
+    ):
+        _ellipse(
+            draw,
+            px,
+            py,
+            width * 0.045,
+            width * 0.045,
+            fill=GOLD_LIGHT,
+            outline=GOLD_EDGE,
+            width=line_width,
+        )
 
 
-# ---------------------------------------------------------
-# public API
-# ---------------------------------------------------------
+def _draw_piece(size: int, side: str, king: bool) -> Image.Image:
+    """Draw a one-layer man or two-layer crowned king."""
 
-def render_piece(size: int, side: str, king: bool = False) -> Image.Image:
-    """
-    Returns a size x size transparent RGBA image.
+    colors = THEME[side]
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
-    side: "White" or "Black"
-    """
-    if side not in THEME:
-        raise ValueError(f"side must be 'White' or 'Black', got {side!r}")
+    cx = size / 2
+    rx = size * 0.405
+    ry = size * 0.30
+    depth = size * 0.10
+    line_width = max(1, int(size * 0.025))
 
-    image = _draw_man(size * SCALE, side)
+    # Top surface positions. Kings use two closely stacked layers.
+    top_y = size * (0.345 if king else 0.395)
+
+    # Soft shadow underneath the token.
+    # shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    # sd = ImageDraw.Draw(shadow)
+
+    # _ellipse(
+    #     sd,
+    #     cx,
+    #     top_y + depth + ry * (2 if king else 1) + size * 0.015,
+    #     rx * 0.91,
+    #     ry * 0.75,
+    #     fill=(0, 0, 0, colors["shadow_alpha"]),
+    # )
+
+    # image.alpha_composite(
+    #     shadow.filter(ImageFilter.GaussianBlur(size * 0.035))
+    # )
+
+    draw = ImageDraw.Draw(image)
 
     if king:
-        _draw_crown(image)
+        # Bottom cylinder first; the upper cylinder overlaps it.
+        lower_y = top_y + size * 0.175
 
-    return image.resize((size, size), Image.LANCZOS)
+        _draw_cylinder(
+            image,
+            cx,
+            lower_y,
+            rx,
+            ry,
+            depth,
+            colors,
+            line_width,
+        )
+
+    _draw_cylinder(
+        image,
+        cx,
+        top_y,
+        rx,
+        ry,
+        depth,
+        colors,
+        line_width,
+    )
+
+    if king:
+        # The crown sits on the upper face.
+        crown_width = size * 0.34
+        crown_height = size * 0.205
+
+        _draw_crown(
+            draw,
+            cx,
+            top_y + size * 0.005,
+            crown_width,
+            crown_height,
+            max(1, int(size * 0.018)),
+        )
+
+    return image
 
 
-def generate(out_dir: Path = ASSETS_DIR, size: int = DEFAULT_SIZE) -> list[Path]:
-    """
-    Creates the four piece images. Returns the written files.
-    """
+def render_piece(
+    size: int,
+    side: str,
+    king: bool = False,
+) -> Image.Image:
+    """Return a transparent RGBA image of exactly size x size."""
+
+    if side not in THEME:
+        raise ValueError(
+            f"side must be 'White' or 'Black', got {side!r}"
+        )
+
+    if size < 16:
+        raise ValueError("size must be at least 16")
+
+    big = size * SCALE
+    image = _draw_piece(big, side, king)
+
+    return image.resize(
+        (size, size),
+        Image.Resampling.LANCZOS,
+    )
+
+
+def generate(
+    out_dir: Path = ASSETS_DIR,
+    size: int = DEFAULT_SIZE,
+) -> list[Path]:
+    """Generate the four piece assets."""
+
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     written = []
 
     for side in ("White", "Black"):
-        for piece, king in (("Man", False), ("King", True)):
-            path = out_dir / FILE_NAME.format(piece=piece, side=side)
+        for piece, king in (
+            ("Man", False),
+            ("King", True),
+        ):
+            path = out_dir / FILE_NAME.format(
+                piece=piece,
+                side=side,
+            )
 
             render_piece(size, side, king).save(path)
 
@@ -239,57 +332,77 @@ def generate(out_dir: Path = ASSETS_DIR, size: int = DEFAULT_SIZE) -> list[Path]
     return written
 
 
-def make_preview(out_dir: Path = ASSETS_DIR, size: int = DEFAULT_SIZE) -> Path:
-    """
-    Saves preview.png: all four pieces on light and dark squares.
-    """
+def make_preview(
+    out_dir: Path = ASSETS_DIR,
+    size: int = DEFAULT_SIZE,
+) -> Path:
+    """Create a preview board showing all four assets."""
+
     out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     cell = size
-    sheet = Image.new("RGB", (cell * 4, cell * 2), PREVIEW_LIGHT)
-
+    sheet = Image.new(
+        "RGB",
+        (cell * 4, cell * 2),
+        PREVIEW_LIGHT,
+    )
     draw = ImageDraw.Draw(sheet)
 
     for row in range(2):
         for col in range(4):
-            color = PREVIEW_DARK if (row + col) % 2 == 1 else PREVIEW_LIGHT
+            color = (
+                PREVIEW_DARK
+                if (row + col) % 2
+                else PREVIEW_LIGHT
+            )
 
             draw.rectangle(
-                (col * cell, row * cell, (col + 1) * cell, (row + 1) * cell),
+                (
+                    col * cell,
+                    row * cell,
+                    (col + 1) * cell,
+                    (row + 1) * cell,
+                ),
                 fill=color,
             )
 
     pieces = [
-        ("White", False), ("White", True), ("Black", False), ("Black", True),
+        ("White", False),
+        ("White", True),
+        ("Black", False),
+        ("Black", True),
     ]
 
     for index, (side, king) in enumerate(pieces):
         piece = render_piece(size, side, king)
 
         for row in range(2):
-            x = index * cell
-            y = row * cell
-
-            sheet.paste(piece, (x, y), piece)
+            sheet.paste(
+                piece,
+                (index * cell, row * cell),
+                piece,
+            )
 
     path = out_dir / "preview.png"
-
-    sheet.resize((sheet.width * 3, sheet.height * 3), Image.NEAREST).save(path)
+    sheet.resize(
+        (sheet.width * 3, sheet.height * 3),
+        Image.Resampling.NEAREST,
+    ).save(path)
 
     return path
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate PNG assets for the checkers game."
+        description="Generate minimalist checkers PNG assets."
     )
 
     parser.add_argument(
         "--size",
         type=int,
         default=DEFAULT_SIZE,
-        help=f"piece image size in pixels (default {DEFAULT_SIZE}, "
-             "must match SQUARE_SIZE in checkers_interface.py)",
+        help=f"piece image size in pixels (default {DEFAULT_SIZE})",
     )
 
     parser.add_argument(
@@ -302,7 +415,7 @@ def main():
     parser.add_argument(
         "--preview",
         action="store_true",
-        help="also save preview.png with all pieces on a board",
+        help="also save preview.png",
     )
 
     args = parser.parse_args()
