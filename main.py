@@ -11,8 +11,12 @@ from scripts.registry import AppContext
 from scripts.settings_manager import read_settings, ensure_structure
 from scripts.time_tracker import get_tracker
 
+from scripts.todo_manager import TodoManager
+
 from interface.tray import Tray
 from interface.launcher_window import Launcher
+from interface.todo_quick_add import QuickAdd
+from interface.todo_window import open_todo
 from modules import build_modules
 
 
@@ -64,7 +68,13 @@ ctx.launcher = Launcher(ctx)
 # The main window, tray menu and launcher are all built from one module list (modules.py)
 MODULES = build_modules()
 
+todos = TodoManager(BASE_DIR / "db" / "todos.json")
+ctx.todos = todos
+ctx.todo_quick = QuickAdd(root, todos, open_list=lambda: open_todo(root, todos))
 
+if todos.load_error:
+    problems.append(f"Todo: {todos.load_error}")
+    
 def toggle_tracker():
     """Start/stop the timer on the last used project (hotkey and tray menu)."""
     try:
@@ -77,6 +87,8 @@ def toggle_tracker():
     except Exception:
         print(f"[Tracker] {message}")
 
+# The main window, tray menu and launcher are all built from one module list (modules.py)
+MODULES = build_modules()
 
 tray_actions = [
     (module.title, lambda module=module: module.run(ctx))
@@ -107,10 +119,17 @@ if hotkey_spec and str(hotkey_spec).lower() not in ("off", "none", "false"):
 # Default combinations by module key from modules.py.
 # A key that does not exist there is simply ignored: adjust to your keys.
 HOTKEY_DEFAULTS = {
-    "notes": "Ctrl+Alt+N",
-    "activation": "Ctrl+Alt+A",
-    "time_tracker": "Ctrl+Alt+T",
+    "notes":          "Ctrl+Alt+N",
+    "activation":     "Ctrl+Alt+A",
+    "todo_add":       "Ctrl+Alt+T",
+    "todo":           "Ctrl+Alt+L",
+    "tracker_toggle": "Ctrl+Alt+R",
+    "time_tracker":   "Ctrl+Alt+Shift+R",
 }
+
+# Two defaults must never be the same combination
+assert len({v.lower() for v in HOTKEY_DEFAULTS.values()}) == len(HOTKEY_DEFAULTS), \
+    "duplicate default hotkeys"
 
 hotkey_actions = build_actions(
     MODULES,

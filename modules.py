@@ -20,6 +20,15 @@ def _notes(ctx):
     open_notes(ctx.root, ctx.notes_manager)
 
 
+def _todo(ctx):
+    from interface.todo_window import open_todo
+    open_todo(ctx.root, ctx.todos)
+
+
+def _todo_add(ctx):
+    ctx.todo_quick.toggle()
+
+
 def _quick_commands(ctx):
     from interface.quick_commands_window import open_quick_commands
     open_quick_commands(ctx.root, ctx.base_dir, ctx.settings)
@@ -80,6 +89,10 @@ def build_modules() -> list[Module]:
                tray=True, keywords=("task", "project", "задача", "проект")),
         Module("notes", "Quick Notes", _notes,
                tray=True, keywords=("notes", "заметки")),
+        Module("todo_add", "Quick add todo", _todo_add,
+               tray=True, keywords=("todo", "add", "new", "task", "задача", "дело", "добавить")),
+        Module("todo", "Todo list", _todo,
+               tray=True, keywords=("todo", "tasks", "list", "задачи", "дела", "список")),
         Module("quick_commands", "Quick Commands", _quick_commands,
                tray=True, keywords=("git", "cmd", "команды")),
         Module("docker_manager", "Docker Manager", _docker_manager, 

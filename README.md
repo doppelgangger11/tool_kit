@@ -80,6 +80,36 @@ Ctrl + S    Save
 
 Notes are stored locally in `notes.json`.
 
+### Todo
+
+A fast todo list built for capturing many tasks in a row.
+
+* **Quick add** - press `Ctrl+Alt+T` anywhere: a small window opens, type a todo and press `Enter`,
+  the field clears and is ready for the next one. Paste a list and every line becomes a todo
+  (`- `, `* `, `[ ] `, `1. ` markers are removed). `Ctrl+Z` undoes the last add, `Ctrl+L` opens the list.
+* **From the launcher** - `Ctrl+Space`, then `t buy milk #home !! @tomorrow`, `Enter`.
+* **Todo list window** - add field on top, filters (Active / All / Done), tag filter, search,
+  edit in place (`F2`), `Space` to finish, `Delete` to remove, `Ctrl+Z` to undo anything,
+  right click for priority and due date.
+
+Words you can use anywhere in the text:
+
+| Token | Meaning |
+|-------|---------|
+| `#home` | tag |
+| `!` `!!` `!!!` | priority (low / medium / high) |
+| `@today` `@tomorrow` `@fri` `@5.11` `@2026-11-05` `@+3d` `@2w` | due date (`@завтра`, `@пт` also work) |
+
+Todos live in `db/todos.json`. The shortcuts are set in `settings.ini`:
+
+```ini
+[BASE]
+hotkey = ctrl+space
+todo_hotkey = ctrl+alt+t
+```
+
+Use `off` to disable a shortcut.
+
 ### Quick Commands
 
 Toolkit provides a GUI for frequently used development and system commands.
@@ -141,6 +171,8 @@ Toolkit/
 │   └── ...
 │
 ├── games/
+│   ├── chess/
+│   ├── checkers/
 │   ├── minesweeper/
 │   ├── tic_tac_toe/
 │   └── ...
@@ -214,6 +246,10 @@ Current GUI components include functionality for:
 ### `games/`
 
 Contains standalone games and experimental modules.
+
+* `chess/` - chess with a bot (4 difficulty levels);
+* `checkers/` - Russian draughts (8x8, mandatory and multiple captures, flying kings) with a bot (4 difficulty levels). Piece images live in `checkers/assets/` and are made by `python -m games.checkers.generate_assets` (`--size N` must match `SQUARE_SIZE`, `--preview` saves a preview sheet);
+* `minesweeper/`, `tic_tac_toe/` - small standalone games.
 
 ### `db/`
 

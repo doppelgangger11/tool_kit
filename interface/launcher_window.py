@@ -12,10 +12,14 @@ from typing import Callable
 from scripts.registry import AppContext
 from scripts.search import best_score
 from scripts.settings_manager import get_dirs
+from scripts.todo_manager import format_due, parse_quick
 
 MAX_RESULTS = 8
-ICONS = {"module": "▣", "program": "▶", "command": "⌘", "note": "✎"}
-KIND_ORDER = {"module": 0, "command": 1, "program": 2, "note": 3}
+ICONS = {"module": "▣", "program": "▶", "command": "⌘", "note": "✎", "todo": "☑"}
+KIND_ORDER = {"todo": 0, "module": 1, "command": 2, "program": 3, "note": 4}
+
+# "t buy milk", "todo call mom #family @fri", "е ..." (Russian layout), "задача ..."
+TODO_PREFIX = re.compile(r"^(?:t|todo|е|т|задача)\s+(.*\S)$", re.I)
 DANGEROUS = re.compile(r"\b(shutdown|restart|del|erase|rmdir|rd|format|rm|reg\s+delete)\b", re.I)
 
 
@@ -131,6 +135,11 @@ class Launcher:
             scored.sort(key=lambda p: (-p[0], KIND_ORDER[p[1].kind], p[1].title.lower()))
             results = [item for _, item in scored]
 
+        todo_item = self._todo_item(query)
+
+        if todo_item is not None:
+            results = [todo_item] + results
+
         self._shown = results[:MAX_RESULTS]
 
         self.listbox.delete(0, "end")
@@ -149,6 +158,38 @@ class Launcher:
         self.listbox.configure(height=max(rows, 1))
         self.win.update_idletasks()
         self.win.geometry(f"{self.win.winfo_width()}x{self.win.winfo_reqheight()}")
+
+    def _todo_item(self, query: str) -> Item | None:
+        """"t buy milk #home @tomorrow" -> a ready "add this todo" result."""
+        todos = getattr(self.ctx, "todos", None)
+        match = TODO_PREFIX.match(query)
+
+        if todos is None or match is None:
+            return None
+
+        raw = match.group(1)
+        parsed = parse_quick(raw)
+
+        if parsed is None:
+            return None
+
+        label, _ = format_due(parsed["due"])
+
+        preview = "   ".join(
+            part for part in (
+                "!" * parsed["priority"],
+                label,
+                " ".join(f"#{tag}" for tag in parsed["tags"]),
+            ) if part
+        )
+
+        def add():
+            from interface.todo_window import show_toast
+
+            if todos.add(raw) is not None:
+                show_toast(self.ctx.root, f"✓ Added: {parsed['text']}")
+
+        return Item("todo", f"Add todo: {parsed['text']}", preview, add)
 
     @staticmethod
     def _item_score(query: str, item: Item) -> int | None:

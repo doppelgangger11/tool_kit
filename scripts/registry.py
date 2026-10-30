@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 @dataclass
 class AppContext:
-    """Everything the utilities need is in a single object, instead of argument tuples."""
+    """Everything the utilities need in one object instead of argument tuples."""
     root: Any
     base_dir: Path
     settings: dict
@@ -15,6 +15,8 @@ class AppContext:
     dispatcher: Any = None
     tray: Any = None
     launcher: Any = None
+    todos: Any = None          # TodoManager
+    todo_quick: Any = None     # QuickAdd popup
 
 
 @dataclass(frozen=True)
