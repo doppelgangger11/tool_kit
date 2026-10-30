@@ -196,6 +196,207 @@ def format_due(due: str | None, today: date | None = None) -> tuple[str, bool]:
 
 
 # ---------------------------------------------------------
+# table: columns, sorting, saved view
+# ---------------------------------------------------------
+
+COLUMN_TITLES = {
+    "text": "Task",
+    "priority": "Priority",
+    "due": "Due",
+    "tags": "Tags",
+    "created": "Added",
+    "done_at": "Done",
+}
+
+# display order of the columns
+ALL_COLUMNS = list(COLUMN_TITLES)
+
+DEFAULT_COLUMNS = ["text", "priority", "due", "tags"]
+
+DEFAULT_WIDTHS = {
+    "text": 320,
+    "priority": 80,
+    "due": 100,
+    "tags": 150,
+    "created": 120,
+    "done_at": 120,
+}
+
+# the first click on these headers sorts "big first" (high priority, newest)
+DESC_FIRST = {"priority", "created", "done_at"}
+
+# the check box column is sorted with this name
+SORTABLE = set(ALL_COLUMNS) | {"done"}
+
+MIN_COLUMN_WIDTH = 40
+MAX_COLUMN_WIDTH = 1200
+
+
+def _sort_value(todo, column: str):
+    """None means "empty": such rows always go to the end."""
+    if column == "text":
+        return todo.text.lower()
+
+    if column == "priority":
+        return todo.priority
+
+    if column == "due":
+        return todo.due or None
+
+    if column == "tags":
+        return " ".join(todo.tags) or None
+
+    if column == "created":
+        return todo.created or None
+
+    if column == "done_at":
+        return todo.done_at or None
+
+    if column == "done":
+        return todo.done
+
+    raise ValueError(f"unknown column: {column}")
+
+
+def sort_todos(todos, column: str, reverse: bool = False) -> list:
+    """
+    Sorts like a file manager: by the column, empty cells always last,
+    equal rows keep their order.
+    """
+    filled = [todo for todo in todos if _sort_value(todo, column) is not None]
+    empty = [todo for todo in todos if _sort_value(todo, column) is None]
+
+    filled.sort(key=lambda todo: _sort_value(todo, column), reverse=reverse)
+
+    return filled + empty
+
+
+def format_stamp(stamp: str | None, today: date | None = None) -> str:
+    """'2026-10-30 14:20:05' -> '30 Oct 14:20' (with the year if it is not this one)."""
+    if not stamp:
+        return ""
+
+    today = today or date.today()
+
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return stamp
+
+    text = f"{moment.day} {moment.strftime('%b')}"
+
+    if moment.year != today.year:
+        text += f" {moment.year}"
+
+    return f"{text} {moment:%H:%M}"
+
+
+class TodoView:
+    """
+    How the table looks: visible columns, widths, sorting, window size.
+    Saved next to the todos, a broken file just gives the defaults.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+
+        self.columns: list[str] = list(DEFAULT_COLUMNS)
+        self.widths: dict[str, int] = dict(DEFAULT_WIDTHS)
+        # columns whose width was set by hand; the others fit their content
+        self.manual: set[str] = set()
+        self.sort: tuple[str, bool] | None = None
+        self.size: tuple[int, int] | None = None
+
+        self.load()
+
+    def reset_columns(self) -> None:
+        self.columns = list(DEFAULT_COLUMNS)
+        self.widths = dict(DEFAULT_WIDTHS)
+        self.manual = set()
+
+    def load(self) -> None:
+        try:
+            with self.path.open("r", encoding="utf-8-sig") as file:
+                data = json.load(file)
+
+            if not isinstance(data, dict):
+                return
+
+            columns = data.get("columns")
+
+            if isinstance(columns, list):
+                wanted = {name for name in columns if name in COLUMN_TITLES}
+                wanted.add("text")
+
+                # always in the canonical order, the Task column cannot be hidden
+                self.columns = [name for name in ALL_COLUMNS if name in wanted]
+
+            widths = data.get("widths")
+
+            if isinstance(widths, dict):
+                for name, value in widths.items():
+                    if name in COLUMN_TITLES and isinstance(value, (int, float)):
+                        self.widths[name] = max(
+                            MIN_COLUMN_WIDTH, min(MAX_COLUMN_WIDTH, int(value))
+                        )
+
+            manual = data.get("manual")
+
+            if isinstance(manual, list):
+                self.manual = {name for name in manual if name in COLUMN_TITLES}
+
+            sort = data.get("sort")
+
+            if (
+                isinstance(sort, list)
+                and len(sort) == 2
+                and sort[0] in SORTABLE
+                and isinstance(sort[1], bool)
+            ):
+                self.sort = (sort[0], sort[1])
+
+            size = data.get("size")
+
+            if (
+                isinstance(size, list)
+                and len(size) == 2
+                and all(isinstance(v, (int, float)) for v in size)
+            ):
+                self.size = (
+                    max(400, min(4000, int(size[0]))),
+                    max(300, min(3000, int(size[1]))),
+                )
+
+        except (OSError, ValueError, TypeError):
+            return
+
+    def save(self) -> bool:
+        tmp = self.path.with_name(self.path.name + ".tmp")
+
+        data = {
+            "columns": self.columns,
+            "widths": self.widths,
+            "manual": sorted(self.manual),
+            "sort": list(self.sort) if self.sort else None,
+            "size": list(self.size) if self.size else None,
+        }
+
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+
+            with tmp.open("w", encoding="utf-8") as file:
+                json.dump(data, file, indent=2)
+
+            os.replace(tmp, self.path)
+
+            return True
+
+        except OSError as error:
+            print(f"[Todo] Cannot save {self.path}: {error}")
+
+            return False
+
+# ---------------------------------------------------------
 # model
 # ---------------------------------------------------------
 

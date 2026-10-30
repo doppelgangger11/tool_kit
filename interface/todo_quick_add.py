@@ -103,15 +103,16 @@ class QuickAdd:
         )
         self.entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
+        # long todos wrap inside the window instead of running out of it
         self.recent_label = tk.Label(
             frame, text="", fg=GRAY, font=("Segoe UI", 10),
-            justify="left", anchor="w",
+            justify="left", anchor="w", wraplength=width - 60,
         )
 
         self.hint_label = tk.Label(
             frame,
             text="Enter add  ·  paste many lines  ·  Ctrl+Z undo  ·  Ctrl+L open list  ·  Esc close",
-            fg=GRAY, font=("Segoe UI", 8), anchor="w",
+            fg=GRAY, font=("Segoe UI", 8), anchor="w", wraplength=width - 60,
         )
         self.hint_label.pack(fill="x", pady=(6, 0))
 

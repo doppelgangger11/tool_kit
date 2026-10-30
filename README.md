@@ -91,6 +91,13 @@ A fast todo list built for capturing many tasks in a row.
 * **Todo list window** - add field on top, filters (Active / All / Done), tag filter, search,
   edit in place (`F2`), `Space` to finish, `Delete` to remove, `Ctrl+Z` to undo anything,
   right click for priority and due date.
+* **The list is a table, like in a file manager** - columns Task / Priority / Due / Tags / Added / Done:
+  * click a header to sort (first click, reverse, off), the arrow shows the direction;
+  * drag a column border to resize it; double click the border to fit the column to its content again;
+  * right click a header to show or hide columns, fit all columns or reset them;
+  * columns that were not resized by hand always show their whole content (tags are never cut),
+    the Task column takes the free space, and a horizontal scroll bar appears when it is not enough;
+  * columns, widths, sorting and window size are remembered in `db/todo_view.json`.
 
 Words you can use anywhere in the text:
 

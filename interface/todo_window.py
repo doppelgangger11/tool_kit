@@ -11,6 +11,13 @@ Keyboard:
     Ctrl+1 / 2 / 3            Active / All / Done
     Ctrl+F                    search
     Just start typing         the text goes to the top field
+
+The list is a table like in a file manager:
+    drag a column border     resize it (that column stops fitting its content)
+    double click a border    fit the column to its content again
+    click a header           sort; click again to reverse; a third click removes the sorting
+    right click a header     show / hide columns, fit all, reset
+    the width, columns, sorting and window size are remembered
 """
 from __future__ import annotations
 
@@ -19,7 +26,18 @@ import tkinter.font as tkfont
 from datetime import date, timedelta
 from tkinter import ttk
 
-from scripts.todo_manager import TodoManager, format_due
+from scripts.todo_manager import (
+    ALL_COLUMNS,
+    COLUMN_TITLES,
+    DESC_FIRST,
+    MAX_COLUMN_WIDTH,
+    MIN_COLUMN_WIDTH,
+    TodoManager,
+    TodoView,
+    format_due,
+    format_stamp,
+    sort_todos,
+)
 
 CHECK_OFF = "☐"
 CHECK_ON = "☑"
@@ -157,19 +175,51 @@ def describe(todo, today: date) -> str:
 # window
 # ---------------------------------------------------------
 
+CHECK_COLUMN = "#0"
+
+DEFAULT_SIZE = (820, 640)
+MIN_SIZE = (560, 340)
+
+COLUMN_ANCHOR = {
+    "priority": "center",
+}
+
+# the widest an automatic column gets (a pathological tag must not eat the screen);
+# anything wider than the window is reached with the horizontal scroll bar
+AUTO_FIT_MAX = 700
+
+TEXT_MIN = 140
+
+
+def due_label(todo, today: date) -> str:
+    label, overdue = format_due(todo.due, today)
+
+    if overdue and not todo.done:
+        return f"⚠ {label}"
+
+    return label
+
+
 class TodoWindow:
 
     def __init__(self, root: tk.Misc, manager: TodoManager):
         self.root = root
         self.manager = manager
 
+        self.view = TodoView(manager.path.with_name("todo_view.json"))
+
         self.window = tk.Toplevel(root)
         self.window.title("Todo")
-        self.window.geometry("500x620")
-        self.window.minsize(380, 340)
+
+        width, height = self.view.size or DEFAULT_SIZE
+
+        self.window.geometry(f"{width}x{height}")
+        self.window.minsize(*MIN_SIZE)
 
         self._flash_job = None
         self._editor = None
+        self._resizing = None           # (column, width before the drag)
+        self._menu_vars = []            # keeps the header menu variables alive
 
         self.mode = tk.StringVar(value="active")
 
@@ -179,6 +229,9 @@ class TodoWindow:
 
         self.manager.subscribe(self.refresh)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        # real widget sizes are needed to fit the columns
+        self.window.update_idletasks()
 
         self.refresh()
         self.entry.prepare()
@@ -193,9 +246,10 @@ class TodoWindow:
         self.font = tkfont.Font(family="Segoe UI", size=11)
         self.font_bold = tkfont.Font(family="Segoe UI", size=11, weight="bold")
         self.font_done = tkfont.Font(family="Segoe UI", size=11, overstrike=True)
-        self.font_check = tkfont.Font(family="Segoe UI Symbol", size=14)
+        self.font_head = tkfont.Font(family="Segoe UI", size=10)
 
         style.configure("Todo.Treeview", rowheight=32, font=self.font, borderwidth=0)
+        style.configure("Todo.Treeview.Heading", font=self.font_head, padding=(6, 5))
 
         try:
             style.layout("Todo.Treeview", [("Treeview.treearea", {"sticky": "nswe"})])
@@ -279,28 +333,49 @@ class TodoWindow:
         self.tag_box.pack(side="right", padx=(0, 6))
         self.tag_box.bind("<<ComboboxSelected>>", lambda event: self.refresh())
 
-        # ----- list -----
+        # ----- footer (packed before the table so a small window never hides it) -----
+
+        footer = tk.Frame(window, padx=14)
+        footer.pack(side="bottom", fill="x", pady=(0, 12))
+
+        self.status = tk.Label(footer, text="", fg=GRAY, anchor="w", font=("Segoe UI", 9))
+        self.status.pack(side="left", fill="x", expand=True)
+
+        ttk.Button(footer, text="Clear done", command=self.clear_done).pack(side="right")
+        self.undo_button = ttk.Button(footer, text="Undo", command=self.undo)
+        self.undo_button.pack(side="right", padx=(0, 6))
+
+        # ----- table -----
 
         body = tk.Frame(window, padx=14, pady=8)
         body.pack(fill="both", expand=True)
 
+        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(0, weight=1)
+
         self.tree = ttk.Treeview(
             body,
             style="Todo.Treeview",
-            columns=("text", "meta"),
-            show="tree",
+            columns=ALL_COLUMNS,
+            displaycolumns=self.view.columns,
+            show="tree headings",
             selectmode="extended",
+            height=5,
         )
 
-        self.tree.column("#0", width=44, stretch=False, anchor="center")
-        self.tree.column("text", width=260, stretch=True)
-        self.tree.column("meta", width=150, stretch=False, anchor="e")
+        self.vscroll = ttk.Scrollbar(body, orient="vertical", command=self.tree.yview)
+        self.hscroll = ttk.Scrollbar(body, orient="horizontal", command=self.tree.xview)
 
-        scroll = ttk.Scrollbar(body, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.configure(
+            yscrollcommand=lambda lo, hi: self._set_scroll(self.vscroll, lo, hi),
+            xscrollcommand=lambda lo, hi: self._set_scroll(self.hscroll, lo, hi),
+        )
 
-        scroll.pack(side="right", fill="y")
-        self.tree.pack(side="left", fill="both", expand=True)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        self.vscroll.grid(row=0, column=1, sticky="ns")
+        self.hscroll.grid(row=1, column=0, sticky="ew")
+
+        self._build_columns()
 
         self.tree.tag_configure("done", foreground="#a0a0a0", font=self.font_done)
         self.tree.tag_configure("overdue", foreground=OVERDUE)
@@ -314,19 +389,23 @@ class TodoWindow:
             self.tree, text="", fg=GRAY, font=("Segoe UI", 11), justify="center"
         )
 
-        # ----- footer -----
-
-        footer = tk.Frame(window, padx=14, pady=(0))
-        footer.pack(fill="x", pady=(0, 12))
-
-        self.status = tk.Label(footer, text="", fg=GRAY, anchor="w", font=("Segoe UI", 9))
-        self.status.pack(side="left", fill="x", expand=True)
-
-        ttk.Button(footer, text="Clear done", command=self.clear_done).pack(side="right")
-        self.undo_button = ttk.Button(footer, text="Undo", command=self.undo)
-        self.undo_button.pack(side="right", padx=(0, 6))
-
         self.menu = self._build_menu()
+
+    def _build_columns(self):
+        tree = self.tree
+
+        tree.column(CHECK_COLUMN, width=44, minwidth=44, stretch=False, anchor="center")
+
+        for column in ALL_COLUMNS:
+            tree.column(
+                column,
+                width=self.view.widths[column],
+                minwidth=140 if column == "text" else MIN_COLUMN_WIDTH,
+                stretch=(column == "text"),
+                anchor=COLUMN_ANCHOR.get(column, "w"),
+            )
+
+        self.update_headings()
 
     def _build_menu(self) -> tk.Menu:
         menu = tk.Menu(self.window, tearoff=False)
@@ -361,12 +440,14 @@ class TodoWindow:
         self.entry.bind("<Down>", self.focus_list)
         self.entry.bind("<Escape>", self.on_entry_escape)
 
-        # list
+        # table
         tree = self.tree
 
         tree.bind("<Button-1>", self.on_click)
+        tree.bind("<ButtonRelease-1>", self.on_release)
         tree.bind("<Double-1>", self.on_double_click)
         tree.bind("<Button-3>", self.on_right_click)
+        tree.bind("<<TreeviewSelect>>", lambda event: self.update_footer())
         tree.bind("<space>", lambda event: self.toggle_selected() or "break")
         tree.bind("<Delete>", lambda event: self.delete_selected() or "break")
         tree.bind("<F2>", lambda event: self.edit_selected() or "break")
@@ -385,6 +466,16 @@ class TodoWindow:
         self.search.bind("<Escape>", self.on_search_escape)
         self.search.bind("<Return>", self.focus_list)
 
+    @staticmethod
+    def _set_scroll(scrollbar, low, high):
+        """A scroll bar that is only visible when there is something to scroll."""
+        scrollbar.set(low, high)
+
+        if float(low) <= 0.0 and float(high) >= 1.0:
+            scrollbar.grid_remove()
+        else:
+            scrollbar.grid()
+
     # =========================================================
     # LIFECYCLE
     # =========================================================
@@ -400,8 +491,205 @@ class TodoWindow:
             except tk.TclError:
                 pass
 
+        self.remember_widths()
+        self.view.size = (self.window.winfo_width(), self.window.winfo_height())
+        self.view.save()
+
         _window = None
         self.window.destroy()
+
+    # =========================================================
+    # COLUMNS: headings, sorting, widths
+    # =========================================================
+
+    def heading_text(self, key: str, title: str) -> str:
+        sort = self.view.sort
+
+        if sort and sort[0] == key:
+            return f"{title} {'▼' if sort[1] else '▲'}"
+
+        return title
+
+    def update_headings(self):
+        tree = self.tree
+
+        tree.heading(
+            CHECK_COLUMN,
+            text=self.heading_text("done", "✓"),
+            anchor="center",
+            command=lambda: self.on_header_click("done"),
+        )
+
+        for column in ALL_COLUMNS:
+            tree.heading(
+                column,
+                text=self.heading_text(column, COLUMN_TITLES[column]),
+                anchor=COLUMN_ANCHOR.get(column, "w"),
+                command=lambda column=column: self.on_header_click(column),
+            )
+
+    def on_header_click(self, key: str):
+        """First click sorts, the second reverses, the third removes the sorting."""
+        current = self.view.sort
+        first = key in DESC_FIRST
+
+        if current is None or current[0] != key:
+            new = (key, first)
+        elif current[1] == first:
+            new = (key, not first)
+        else:
+            new = None
+
+        self.set_sort(new)
+
+    def set_sort(self, sort):
+        self.view.sort = sort
+        self.view.save()
+
+        self.update_headings()
+        self.refresh()
+
+    def content_width(self, column: str) -> int:
+        """Width that shows the header and the longest value of the column."""
+        heading = self.font_head.measure(COLUMN_TITLES[column]) + 32    # room for the arrow
+
+        # measured with the bold font: rows with the highest priority are bold
+        cells = max(
+            (
+                self.font_bold.measure(self.tree.set(iid, column))
+                for iid in self.tree.get_children()
+            ),
+            default=0,
+        ) + 20
+
+        return max(MIN_COLUMN_WIDTH, min(max(heading, cells), AUTO_FIT_MAX, MAX_COLUMN_WIDTH))
+
+    def fit_column(self, column: str):
+        width = self.content_width(column)
+
+        self.tree.column(column, width=width)
+        self.view.widths[column] = width
+
+    def fit_auto_columns(self):
+        """
+        Columns that were not resized by hand always show their whole content;
+        the Task column takes the space that is left.
+        """
+        for column in self.view.columns:
+            if column != "text" and column not in self.view.manual:
+                self.fit_column(column)
+
+        self.balance_text_column()
+
+    def balance_text_column(self):
+        if "text" in self.view.manual:
+            return
+
+        others = 44 + sum(
+            int(self.tree.column(column, "width"))
+            for column in self.view.columns
+            if column != "text"
+        )
+
+        width = max(TEXT_MIN, self.tree.winfo_width() - others)
+
+        self.tree.column("text", width=width)
+        self.view.widths["text"] = width
+
+    def fit_all(self):
+        self.view.manual = set()
+
+        self.fit_auto_columns()
+        self.view.save()
+
+    def reset_columns(self):
+        self.view.reset_columns()
+
+        self.tree.configure(displaycolumns=self.view.columns)
+
+        for column in ALL_COLUMNS:
+            self.tree.column(column, width=self.view.widths[column])
+
+        self.fit_auto_columns()
+        self.view.save()
+
+    def remember_widths(self):
+        for column in ALL_COLUMNS:
+            try:
+                self.view.widths[column] = int(self.tree.column(column, "width"))
+            except (tk.TclError, ValueError):
+                pass
+
+    def set_column_visible(self, column: str, visible: bool):
+        wanted = set(self.view.columns)
+
+        if visible:
+            wanted.add(column)
+        else:
+            wanted.discard(column)
+
+        wanted.add("text")
+
+        self.view.columns = [name for name in ALL_COLUMNS if name in wanted]
+
+        self.tree.configure(displaycolumns=self.view.columns)
+
+        self.fit_auto_columns()
+        self.view.save()
+
+    def separator_column(self, x: int) -> str | None:
+        """
+        The column whose right border is under x (the header borders you drag).
+        """
+        tree = self.tree
+
+        order = [CHECK_COLUMN] + list(self.view.columns)
+
+        widths = [int(tree.column(column, "width")) for column in order]
+        offset = int(tree.xview()[0] * sum(widths))
+
+        edge = 0
+        best = None
+
+        for column, width in zip(order, widths):
+            edge += width
+
+            distance = abs(edge - offset - x)
+
+            if distance <= 6 and (best is None or distance < best[0]):
+                best = (distance, column)
+
+        return best[1] if best else None
+
+    def show_header_menu(self, event):
+        menu = tk.Menu(self.window, tearoff=False)
+
+        self._menu_vars = []
+
+        for column in ALL_COLUMNS:
+            if column == "text":
+                continue
+
+            variable = tk.BooleanVar(value=column in self.view.columns)
+            self._menu_vars.append(variable)
+
+            menu.add_checkbutton(
+                label=COLUMN_TITLES[column],
+                variable=variable,
+                command=lambda column=column, variable=variable:
+                    self.set_column_visible(column, variable.get()),
+            )
+
+        menu.add_separator()
+        menu.add_command(label="Fit columns to content", command=self.fit_all)
+        menu.add_command(label="Reset columns", command=self.reset_columns)
+        menu.add_command(
+            label="Reset sorting",
+            command=lambda: self.set_sort(None),
+            state="normal" if self.view.sort else "disabled",
+        )
+
+        menu.tk_popup(event.x_root, event.y_root)
 
     # =========================================================
     # RENDER
@@ -428,6 +716,9 @@ class TodoWindow:
         mode = self.mode.get()
         items = manager.view(mode, self.current_tag(), self.search.value())
 
+        if self.view.sort:
+            items = sort_todos(items, *self.view.sort)
+
         selected = set(self.tree.selection())
         top = self.tree.yview()[0]
 
@@ -435,26 +726,24 @@ class TodoWindow:
 
         today = date.today()
 
-        widest = 0
-
         for todo in items:
-            meta = describe(todo, today)
-
-            widest = max(widest, self.font.measure(meta))
-
             self.tree.insert(
                 "",
                 "end",
                 iid=todo.id,
                 text=CHECK_ON if todo.done else CHECK_OFF,
-                values=(todo.text, meta),
+                values=(
+                    todo.text,
+                    "!" * todo.priority,
+                    due_label(todo, today),
+                    " ".join(f"#{tag}" for tag in todo.tags),
+                    format_stamp(todo.created, today),
+                    format_stamp(todo.done_at, today),
+                ),
                 tags=self.row_tags(todo, today),
             )
 
-        # the right column is as wide as its longest content (but never eats the text)
-        limit = max(110, int(self.tree.winfo_width() * 0.55))
-
-        self.tree.column("meta", width=min(max(widest + 28, 90), limit))
+        self.fit_auto_columns()
 
         keep = [iid for iid in selected if self.tree.exists(iid)]
 
@@ -520,7 +809,21 @@ class TodoWindow:
 
         self.undo_button.config(state="normal" if self.manager.can_undo else "disabled")
 
-        if self._flash_job is None:
+        if self._flash_job is not None:
+            return
+
+        selection = self.tree.selection()
+        todo = self.manager.get(selection[0]) if len(selection) == 1 else None
+
+        if todo is not None:
+            # the whole todo, even when the table cuts it
+            text = todo.raw()
+
+            if len(text) > 110:
+                text = text[:109] + "…"
+
+            self.status.config(text=text)
+        else:
             self.status.config(
                 text=f"{counts['active']} active  ·  {counts['done']} done"
             )
@@ -591,6 +894,21 @@ class TodoWindow:
     # =========================================================
 
     def on_click(self, event):
+        region = self.tree.identify_region(event.x, event.y)
+
+        # the start of a column border drag: remember what is being resized
+        if region == "separator":
+            column = self.separator_column(event.x)
+
+            if column and column != CHECK_COLUMN:
+                self._resizing = (column, int(self.tree.column(column, "width")))
+            else:
+                self._resizing = None
+
+            return None
+
+        self._resizing = None
+
         row = self.tree.identify_row(event.y)
 
         if row and self.tree.identify_column(event.x) == "#0":
@@ -600,7 +918,41 @@ class TodoWindow:
 
         return None
 
+    def on_release(self, event):
+        if self._resizing is None:
+            return
+
+        column, before = self._resizing
+        self._resizing = None
+
+        after = int(self.tree.column(column, "width"))
+
+        # a width set by hand is kept; the column stops fitting its content
+        if after != before:
+            self.view.manual.add(column)
+            self.view.widths[column] = after
+            self.view.save()
+
     def on_double_click(self, event):
+        region = self.tree.identify_region(event.x, event.y)
+
+        # a double click on a column border fits the column to its content
+        if region == "separator":
+            column = self.separator_column(event.x)
+
+            if column and column != CHECK_COLUMN:
+                self.view.manual.discard(column)
+
+                if column == "text":
+                    self.balance_text_column()
+                else:
+                    self.fit_column(column)
+                    self.balance_text_column()
+
+                self.view.save()
+
+            return "break"
+
         row = self.tree.identify_row(event.y)
 
         if row and self.tree.identify_column(event.x) != "#0":
@@ -612,6 +964,11 @@ class TodoWindow:
         return None
 
     def on_right_click(self, event):
+        if self.tree.identify_region(event.x, event.y) in ("heading", "separator"):
+            self.show_header_menu(event)
+
+            return
+
         row = self.tree.identify_row(event.y)
 
         if not row:
@@ -784,7 +1141,12 @@ class TodoWindow:
         editor.insert(0, todo.raw())
         editor.select_range(0, "end")
         editor.icursor("end")
-        editor.place(x=x - 2, y=y, width=self.tree.winfo_width() - x, height=height)
+        editor.place(
+            x=x - 2,
+            y=y,
+            width=max(160, self.tree.winfo_width() - x - 4),
+            height=height,
+        )
         editor.focus_set()
 
         finished = {"value": False}
