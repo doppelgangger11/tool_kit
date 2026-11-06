@@ -1,7 +1,8 @@
 import sys
-import tkinter as tk
 
 from pathlib import Path
+
+import customtkinter as ctk
 
 from scripts.daemon import Dispatcher, SingleInstance
 from scripts.hotkey import GlobalHotkey
@@ -15,6 +16,7 @@ from scripts.todo_manager import TodoManager
 
 from interface.tray import Tray
 from interface.launcher_window import Launcher
+from interface.main_window import build_main_window
 from interface.todo_quick_add import QuickAdd
 from interface.todo_window import open_todo
 from modules import build_modules
@@ -48,7 +50,7 @@ START_HIDDEN = (
 # Window
 # ---------------------------------------------------------
 
-root = tk.Tk()
+root = ctk.CTk()
 root.title("Toolkit")
 
 dispatcher = Dispatcher(root)
@@ -152,33 +154,7 @@ for key, (state, message) in hotkeys.apply().items():
 # UI
 # ---------------------------------------------------------
 
-label = tk.Label(root, text="Greetings!")
-label.pack(pady=10)
-
-if problems:
-    tk.Label(
-        root,
-        text="⚠ " + "\n".join(problems),
-        fg="red", font=("Arial", 8), justify="left",
-    ).pack(pady=(0, 5))
-
-for module in MODULES:
-    tk.Button(
-        root,
-        text=module.title,
-        command=lambda module=module: module.run(ctx),
-    ).pack(
-        fill="x",
-        padx=10,
-        pady=5,
-    )
-
-root.update_idletasks()
-
-width = root.winfo_reqwidth()
-height = root.winfo_reqheight()
-
-root.geometry(f"{width + 20}x{height + 20}")
+main_window = build_main_window(root, ctx, MODULES, problems)
 
 # ---------------------------------------------------------
 # Daemon

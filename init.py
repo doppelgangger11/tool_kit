@@ -49,6 +49,7 @@ if str(BASE_DIR) not in sys.path:
 # Packages that must be present even if the scan below does not find them.
 REQUIRED_PACKAGES = {
     "pystray": "pystray",
+    "customtkinter": "customtkinter",
     "PIL": "pillow",
     "tqdm": "tqdm",
 }
