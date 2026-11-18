@@ -7,7 +7,7 @@ import customtkinter as ctk
 from scripts.daemon import Dispatcher, SingleInstance
 from scripts.hotkey import GlobalHotkey
 from scripts.hotkeys import HotkeyService, apply_defaults, build_actions
-from scripts.note_manager import NotesManager
+from scripts.note_store import NoteStore
 from scripts.registry import AppContext
 from scripts.settings_manager import read_settings, ensure_structure
 from scripts.time_tracker import get_tracker
@@ -55,14 +55,19 @@ root.title("Toolkit")
 
 dispatcher = Dispatcher(root)
 
-notes_manager = NotesManager(path=BASE_DIR / "db" / "notes.json")
-notes_manager.read_notes()
+notes_dir = BASE_DIR / "db" / "notes"
+notes_store = NoteStore(notes_dir)
+
+# Однократный импорт старых заметок из notes.json (если он существует)
+imported_count = notes_store.import_legacy_json(BASE_DIR / "db" / "notes.json")
+if imported_count > 0:
+    print(f"[Toolkit] Successfully imported {imported_count} legacy notes into Markdown format.")
 
 ctx = AppContext(
     root=root,
     base_dir=BASE_DIR,
     settings=BASE_SETTINGS,
-    notes_manager=notes_manager,
+    notes_manager=notes_store,  # Теперь в ctx передается NoteStore вместо NotesManager
     dispatcher=dispatcher,
 )
 ctx.launcher = Launcher(ctx)
