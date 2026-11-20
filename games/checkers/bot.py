@@ -24,12 +24,12 @@ class CheckersBot:
             "time": 0.0,
         },
         "Medium": {
-            "depth": 3,
+            "depth": 1,
             "randomness": 0.10,
             "time": 0.5,
         },
         "Hard": {
-            "depth": 5,
+            "depth": 3,
             "randomness": 0.03,
             "time": 1.0,
         },
